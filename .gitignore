@@ -21,5 +21,33 @@ mono_crash.*.json
 
 # Export outputs
 *.exe
+
+# Local tooling / smoke-test residue
+.godot-appdata/
+scons_build.log
+godot_smoke.log
+# Downloaded godot-cpp source (plain zip extract). Remove this line if you
+# switch to a proper git submodule: git submodule add https://github.com/godotengine/godot-cpp.git godot-cpp
+godot-cpp/
+
+# GDExtension / SCons build outputs
+project/addons/fragile/bin/*.dll
+project/addons/fragile/bin/*.so
+project/addons/fragile/bin/*.dylib
+project/addons/fragile/bin/*.framework/
+*.os
+*.obj
+*.o
+.sconsign.dblite
+compile_commands.json
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+*.exp
+*.lib
+
 # Uncomment if your project does not version PCK files as runtime dependencies.
 # *.pck

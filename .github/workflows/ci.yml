@@ -1,0 +1,149 @@
+# CI for the fragile GDExtension.
+#
+# Checks:
+#   1. Language standards - clang-format (pinned 22.1.3, matches the local
+#      VS 2026 LLVM toolchain, see AGENTS.md) on src/.
+#   2. Build - scons on Windows (MSVC), Linux (GCC), macOS (Clang).
+#   3. Smoke test on Windows - headless engine import + run, mirroring the
+#      verification checklist in AGENTS.md (extension_list.cfg, entry symbol,
+#      failure-signature grep).
+#
+# YAML pitfall (see AGENTS.md): a single-line `run:` must NOT start with `&`
+# - YAML reads it as an anchor and the whole workflow silently compiles to
+#   zero jobs. Always use `run: |` blocks; `&` is only safe inside a block.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Language standards (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install clang-format (pinned)
+        run: |
+          python -m pip install --upgrade pip
+          pip install clang-format==22.1.3
+          clang-format --version
+
+      - name: Check formatting of src/
+        run: clang-format --dry-run --Werror src/*.cpp src/*.h
+
+  build:
+    name: Build (${{ matrix.platform }} ${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+            target: template_debug
+            smoke: true
+          - platform: windows
+            os: windows-latest
+            target: template_release
+            smoke: false
+          - platform: linux
+            os: ubuntu-latest
+            target: template_debug
+            smoke: false
+          - platform: macos
+            os: macos-latest
+            target: template_debug
+            smoke: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      # godot-cpp is a plain gitignored directory on the dev machine; clone it
+      # when the checkout did not provide it (submodule case is handled above).
+      - name: Fetch godot-cpp (10.0.0-stable)
+        shell: bash
+        run: |
+          if [ ! -d godot-cpp ]; then
+            git clone --depth 1 --branch 10.0.0-stable https://github.com/godotengine/godot-cpp.git godot-cpp
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install SCons
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install scons==4.4.0
+
+      - name: Restore SCons cache
+        uses: actions/cache@v4
+        with:
+          path: .scons-cache
+          key: scons-${{ matrix.platform }}-${{ matrix.target }}-${{ hashFiles('SConstruct') }}
+          restore-keys: |
+            scons-${{ matrix.platform }}-${{ matrix.target }}-
+
+      - name: Build
+        shell: bash
+        env:
+          SCONS_CACHE: ${{ github.workspace }}/.scons-cache
+        run: scons platform=${{ matrix.platform }} target=${{ matrix.target }}
+
+      # AGENTS.md verification checklist, item 2.
+      - name: Verify exported entry symbol
+        if: ${{ matrix.platform == 'windows' }}
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find '**/dumpbin.exe' | Select-Object -First 1
+          $dll = "project/addons/fragile/bin/fragile.windows.${{ matrix.target }}.x86_64.dll"
+          $out = & $dumpbin /exports $dll | Out-String
+          Write-Host $out
+          if ($out -notmatch 'fragile_library_init') { Write-Error "entry symbol missing from $dll"; exit 1 }
+
+      - name: Download Godot 4.7
+        if: ${{ matrix.smoke }}
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri 'https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_win64.exe.zip' -OutFile godot.zip
+          Expand-Archive godot.zip -DestinationPath godot
+
+      # AGENTS.md pitfall #1: the editor import must run first - it generates
+      # project/.godot/extension_list.cfg, without which the engine never loads
+      # the extension and reports "Cannot get class 'Fragile'".
+      - name: Headless editor import
+        if: ${{ matrix.smoke }}
+        shell: pwsh
+        run: |
+          $godot = ".\godot\Godot_v4.7-stable_win64_console.exe"
+          & $godot --headless --editor --quit-after 60 --path project
+
+      - name: Headless smoke run
+        if: ${{ matrix.smoke }}
+        shell: pwsh
+        run: |
+          $godot = ".\godot\Godot_v4.7-stable_win64_console.exe"
+          $out = & $godot --headless --path project --quit-after 60 2>&1 | Out-String
+          Write-Host $out
+          foreach ($pat in @("Cannot get class", "Can't open dynamic library", "placeholder")) {
+            if ($out -match $pat) { Write-Error "smoke test failed: $pat"; exit 1 }
+          }

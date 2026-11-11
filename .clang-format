@@ -2,7 +2,7 @@
 # We can uncomment them if we want to change their value, or enforce the
 # chosen value in case the base style changes (last sync: Clang 17.0.6).
 BasedOnStyle: Google
-AccessModifierOffset: -4
+AccessModifierOffset: -2 # Access modifiers flush left (column 0); members keep their indent
 AlignAfterOpenBracket: false
 # AlignArrayOfStructures: None
 # AlignConsecutiveAssignments:
@@ -150,7 +150,7 @@ InsertBraces: true
 #KeepEmptyLinesAtTheStartOfBlocks: false
 # LambdaBodyIndentation: Signature
 # Language: Cpp
-# LineEnding: DeriveLF
+LineEnding: LF # Pin line endings to LF; .gitattributes keeps the tree LF too
 # MacroBlockBegin: ""
 # MacroBlockEnd: ""
 # MaxEmptyLinesToKeep: 1

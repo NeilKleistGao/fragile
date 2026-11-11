@@ -1,5 +1,7 @@
 #include "register_types.h"
 
+#include "fragile/fragile.h"
+
 #include <gdextension_interface.h>
 
 #include <godot_cpp/core/class_db.hpp>
@@ -12,6 +14,11 @@ void initialize_fragile_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+
+	ClassDB::register_class<fragile::framework::FInfo>();
+	ClassDB::register_class<fragile::framework::FActor>();
+	ClassDB::register_class<fragile::framework::FLevel>();
+	ClassDB::register_class<fragile::framework::FWorld>();
 }
 
 void uninitialize_fragile_module(ModuleInitializationLevel p_level) {

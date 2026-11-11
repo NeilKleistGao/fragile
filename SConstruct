@@ -7,6 +7,7 @@ Usage:
     scons compiledb=yes            # also emit compile_commands.json (CLion / clangd)
     scons compiledb=yes compile_commands.json   # emit the DB without compiling
 """
+import glob
 import os
 import sys
 
@@ -27,7 +28,10 @@ if not (os.path.isdir("godot-cpp") and os.listdir("godot-cpp")):
 env = SConscript("godot-cpp/SConstruct", {"api_version": "4.7"})
 
 env.Append(CPPPATH=["src/"])
-sources = Glob("src/*.cpp")
+
+# SCons' Glob() does not recurse across directories; use Python's glob so
+# every .cpp below src/ (e.g. src/fragile/framework/) is compiled.
+sources = sorted(glob.glob("src/**/*.cpp", recursive=True))
 
 # ".dev" and ".universal" are not part of the .gdextension library keys.
 suffix = env["suffix"].replace(".dev", "").replace(".universal", "")

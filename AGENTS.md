@@ -144,15 +144,21 @@ Old URLs 404. Current locations:
 
 ## CI (.github/workflows/ci.yml)
 
-Two jobs: `lint` (clang-format on `src/`) and `build` (4-way matrix: Windows
-debug/release, Linux debug, macOS debug), with a headless engine smoke test on
-the Windows debug leg.
+Two jobs: `lint` (clang-format over all of `src/` plus a LF line-ending check)
+and `build` (4-way matrix: Windows debug/release, Linux debug, macOS debug),
+with a headless engine smoke test on the Windows debug leg.
 
 - **Language standard**: the repo ships `godot-cpp`'s official `.clang-format`
-  (verbatim copy). CI pins `clang-format==22.1.3` (PyPI) to match the local
-  VS 2026 LLVM toolchain exactly — unpinned clang-format versions reformat
-  differently and would desync local runs from CI. Check locally with
-  `<VS>\VC\Tools\Llvm\x64\bin\clang-format.exe --dry-run --Werror src\*.h src\*.cpp`.
+  (copy with local tweaks `LineEnding: LF` and `AccessModifierOffset: -2`, the
+  latter keeping access modifiers flush left at column 0 while members stay
+  indented). CI pins `clang-format==22.1.3` (PyPI)
+  to match the local VS 2026 LLVM toolchain exactly — unpinned clang-format
+  versions reformat differently and would desync local runs from CI. Check
+  locally with
+  `<VS>\VC\Tools\Llvm\x64\bin\clang-format.exe --dry-run --Werror (Get-ChildItem src -Recurse -Include *.h,*.cpp).FullName`.
+  Coverage must span **all** of `src/` recursively (the CI `lint` step passes
+  an explicit `find`-generated list): clang-format's own glob does not recurse
+  and rejects `src\**\*.h` as an invalid argument.
 - **YAML pitfall**: a single-line `run:` must not start with `&` — YAML parses
   it as an anchor and the workflow silently compiles to **zero jobs**. Always
   use `run: |` blocks when a command may start with `&` (PowerShell call
@@ -178,7 +184,7 @@ the Windows debug leg.
 3. Headless editor import succeeds ("validating GDExtension" in output) and
    `project/.godot/extension_list.cfg` lists
    `res://addons/fragile/bin/fragile.gdextension`.
-4. Headless run exits 0 and loads `main.tscn` whose root node is a `Fragile`
+4. Headless run exits 0 and loads `main.tscn` whose root node is a `FWorld`
    instance — this exercises class registration end to end.
 
 Failure signatures:
@@ -201,3 +207,6 @@ Failure signatures:
 - Build outputs (`project/addons/fragile/bin/*.dll`, `*.os`, `.sconsign.dblite`,
   `compile_commands.json`) and smoke-test residue (`.godot-appdata/`,
   `*.log`) are git-ignored; do not commit them.
+- Line endings are pinned to LF: `.gitattributes` (`* text=auto eol=lf`),
+  `.editorconfig` (`end_of_line = lf`) and `LineEnding: LF` in `.clang-format`.
+  Never commit CRLF; the CI lint job fails on any CR byte in text files.

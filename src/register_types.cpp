@@ -15,6 +15,10 @@ void initialize_fragile_module(ModuleInitializationLevel p_level) {
 		return;
 	}
 
+#if GODOT_VERSION_MAJOR != 4 || GODOT_VERSION_MINOR != 7
+	WARN_PRINT_ONCE_ED("Fragile is only tested on Godot 4.7. Other versions may not be fully supported.")
+#endif
+
 	ClassDB::register_class<fragile::framework::FInfo>();
 	ClassDB::register_class<fragile::framework::FActor>();
 	ClassDB::register_class<fragile::framework::FLevel>();
@@ -31,7 +35,7 @@ extern "C" {
 
 // Initialization.
 GDExtensionBool GDE_EXPORT fragile_library_init(GDExtensionInterfaceGetProcAddress p_get_proc_address, GDExtensionClassLibraryPtr p_library, GDExtensionInitialization* r_initialization) {
-	godot::GDExtensionBinding::InitObject init_obj(p_get_proc_address, p_library, r_initialization);
+	GDExtensionBinding::InitObject init_obj(p_get_proc_address, p_library, r_initialization);
 
 	init_obj.register_initializer(initialize_fragile_module);
 	init_obj.register_terminator(uninitialize_fragile_module);

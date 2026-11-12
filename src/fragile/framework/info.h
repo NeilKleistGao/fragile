@@ -9,11 +9,11 @@
 namespace fragile::framework {
 
 /**
- * @brief Base class for side information nodes.
+ * @brief Base class of all "utility" objects not placed in the game world.
  *
- * A plain Node that implements ISerializable without carrying any state of
- * its own; serialization always succeeds and stores nothing. Derived classes
- * are expected to extend the serialization.
+ * Mirrors Unreal Engine's AInfo: it carries game information (rules, global
+ * state) without being part of a level. FInfo has no state of its own; its
+ * serialization is a no-op that derived classes extend.
  */
 class FInfo : public godot::Node, IMPLEMENTS(ISerializable) {
 	GDCLASS(FInfo, godot::Node)

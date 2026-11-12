@@ -9,10 +9,12 @@
 namespace fragile::framework {
 
 /**
- * @brief Base class for in-level entities.
+ * @brief Base class for objects that can be placed or spawned in a level.
  *
- * A Node2D that implements ISerializable: an actor persists its local
- * position so that levels can rebuild their contents from plain dictionaries.
+ * Mirrors Unreal Engine's AActor: the basic building block of the game
+ * world. An actor lives inside an FLevel, can be spawned at runtime by class
+ * name (FLevel::spawn_actor) and owns gameplay state that survives save and
+ * restore (currently its local position).
  */
 class FActor : public godot::Node2D, IMPLEMENTS(ISerializable) {
 	GDCLASS(FActor, godot::Node2D)

@@ -12,10 +12,12 @@
 namespace fragile::framework {
 
 /**
- * @brief Container for the actors of one level.
+ * @brief A container of actors.
  *
- * Spawns actors by class name, keeps them in an internal list and serializes
- * the complete actor set into and out of nested dictionaries.
+ * Mirrors Unreal Engine's ULevel: it holds the actors that make up one part
+ * of the game world. Levels are created and opened at runtime through
+ * FWorld::open_level and can be serialized to and restored from a plain
+ * dictionary together with all their actors.
  */
 class FLevel : public godot::Node2D, IMPLEMENTS(ISerializable) {
 	GDCLASS(FLevel, godot::Node2D)

@@ -40,6 +40,6 @@ public:
 	[[nodiscard]] virtual godot::Error deserialize(const godot::Dictionary& data) = 0;
 };
 
-} // namespace fragile::interface
+}	 // namespace fragile::interface
 
 #endif	// __FRAGILE_SERIALIZABLE_H__

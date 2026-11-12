@@ -10,10 +10,11 @@
 namespace fragile::framework {
 
 /**
- * @brief Root node of the framework: owns the currently open level.
+ * @brief The primary container for everything that comprises a level or scene.
  *
- * Opens levels by class name and serializes the world as the current level
- * wrapped in its own dictionary.
+ * Mirrors Unreal Engine's UWorld: it owns the currently open level with its
+ * actors and switches levels at runtime (open_level). The whole world
+ * serializes as the current level wrapped in its own dictionary.
  */
 class FWorld : public godot::Node2D, IMPLEMENTS(ISerializable) {
 	GDCLASS(FWorld, godot::Node2D)

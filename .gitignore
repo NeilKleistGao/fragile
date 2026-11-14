@@ -26,6 +26,10 @@ mono_crash.*.json
 .godot-appdata/
 scons_build.log
 godot_smoke.log
+
+# .NET bindings pipeline workspace (scripts/build_dotnet_bindings.ps1):
+# downloaded engine source tree, build outputs and the local NuGet feed
+.deps/
 # Downloaded godot-cpp source (plain zip extract). Remove this line if you
 # switch to a proper git submodule: git submodule add https://github.com/godotengine/godot-cpp.git godot-cpp
 godot-cpp/

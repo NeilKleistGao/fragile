@@ -41,6 +41,75 @@ A clean smoke test exits **0** with only benign noise (see "Environment
 pitfalls"). Anything resembling the failure signatures in the checklist below
 means the extension did not load.
 
+## C# / .NET bindings pipeline (limboai-style)
+
+Goal: the fragile classes (`FInfo`, `FActor`, `FLevel`, `FWorld`) are real
+types in C# — `GetNode<FWorld>(...)`, `class MyLevel : FLevel`, IntelliSense —
+both when editing C# code and at runtime. GodotSharp's types are generated
+from ClassDB, and the hidden `--generate-mono-glue` tool generates them
+**with the loaded GDExtension's classes included** (`api_type: extension`).
+The pipeline mirrors the limboai packages (`Godot.NET.Sdk/4.7.2-limboai-*.gha`):
+
+1. `scripts/build_dotnet_bindings.ps1` does the whole run:
+   - patches `version.py` of a matching Godot **source** tree to pin a custom
+     package version (default `4.7.0-fragile-v0.1.0.local`);
+   - runs `godot --headless --editor --path project --generate-mono-glue
+     <godot-src>/modules/mono/glue` (project loaded so fragile is in ClassDB);
+   - runs `scripts/patch_bindings_glue.py` on the generated glue (see the
+     "extension-class glue gaps" note below);
+   - runs `scripts/build_bindings_assemblies.py` (wraps the engine's
+     `build_assemblies.py`, skipping the unrelated GodotTools step) with
+     `--push-nupkgs-local .deps/nupkgs`, producing the `GodotSharp`,
+     `GodotSharpEditor`, `Godot.SourceGenerators` and `Godot.NET.Sdk` nupkgs;
+   - `-InstallApiTo <editor-dir>` copies the built `GodotSharp/Api/{Debug,Release}`
+     into an editor directory — **required for editor-mode runs**, see below.
+2. `nuget.config` (repo root) feeds `.deps/nupkgs`; `project/fragile.csproj`
+   pins `Sdk="Godot.NET.Sdk/4.7.0-fragile-v0.1.0.local"`.
+3. Probe: `project/tests/FWorldProbe.cs` (a C# class deriving from the C++
+   `FWorld`) in `project/tests/dotnet_interop.tscn`; running that scene and
+   finding `DOTNET_INTEROP_PROBE: PASS` in
+   `res://tests/dotnet_interop_result.txt` proves the runtime half.
+
+Pipeline pitfalls:
+
+- The engine **source** tree must match the editor binary (4.7-stable =
+  commit `5b4e0cb0f`). `scripts/download_godot_source.py` fetches the tag zip
+  through the ghproxy mirror and extracts it to `.deps/godot-4.7-stable`
+  (the pipeline script runs it automatically). Python's OpenSSL stack can do
+  TLS in the sandbox, curl/git/schannel cannot — no elevation needed.
+- `--generate-mono-glue` is hidden (not in `--help`) and **requires
+  `--editor`**, else: `Cannot generate Mono glue while running a game
+  project`. The extension must be loaded first (`extension_list.cfg`,
+  pitfall #1) or no `FWorld.cs` is generated — the script checks for it.
+- `build_assemblies.py` derives the package version from `version.py`'s
+  `status`, inserting a dot before trailing digits (`beta3` -> `beta.3`).
+  Pick a `-BindingsVersion` label that does not end in a digit; the script
+  refuses otherwise (e.g. `fragile-v0.1.0` would become the invalid
+  `4.7.0-fragile-v0.1..0`).
+- **Regenerate whenever `_bind_methods()` signatures change**: the generated
+  methods carry the engine's method-compatibility hashes; stale hashes fail
+  at runtime with a method-bind mismatch.
+- **Extension-class glue gaps (why `scripts/patch_bindings_glue.py` exists)**:
+  the official glue (a) omits extension classes from `Constructors.cs`
+  (`bindings_generator.cpp` filters `api_type != API_CORE`), (b) binds their
+  wrappers at the nearest engine base class (`csharp_script.cpp
+  setup_csharp_script_binding` skips `classinfo->gdextension` on purpose,
+  godotengine/godot#75955), and (c) stores the *ancestor's* creation_func for
+  them (`class_db.cpp` extension registration), so `new FLevel()` would build
+  a `Node2D`. The patcher fixes all three on the generated glue. Do not
+  "detect" extension classes via ClassDB bindings during `GodotObject` type
+  initialization — singleton wrapper creation re-enters binding creation and
+  crashes the runtime with 0xC0000005.
+- **Editor-mode runs load the bindings from `<exe dir>/GodotSharp/Api/<cfg>`**
+  (`modules/mono/godotsharp_dirs.cpp`, no override exists). Point
+  `-InstallApiTo` at the editor that will run the project — a portable editor
+  directory (exe + `GodotSharp/` folder, assembled under `.deps/` by the dev
+  machine) or, with elevation, the installed one. Exported games are
+  unaffected: they publish `GodotSharp.dll` from the NuGet package.
+- The custom `GodotSharp.dll` replaces the stock bindings for the whole C#
+  project. Everyone (and CI) needs the same packages: run the script locally
+  (populates `.deps/nupkgs`, gitignored) or publish the feed.
+
 ## Engine pitfalls (Godot 4.7 / godot-cpp v10)
 
 ### 1. `extension_list.cfg` must exist or the engine never sees the extension
@@ -117,11 +186,13 @@ Old URLs 404. Current locations:
   `raw.githubusercontent.com` are unreachable; `ghproxy.net` mirrors work for
   both raw files and zip downloads
   (`https://ghproxy.net/https://github.com/<org>/<repo>/archive/refs/tags/<tag>.zip`).
-- **Sandboxed processes cannot do TLS** (`SEC_E_NO_CREDENTIALS` from schannel;
-  curl, git, and `Invoke-WebRequest` all fail). Downloading dependencies needs
-  a one-time elevated run. Plain `git clone` through the proxy also fails with
-  this error even with `http.sslBackend=openssl` — download and extract a zip
-  instead.
+- **Sandboxed processes cannot do TLS via schannel** (`SEC_E_NO_CREDENTIALS`;
+  curl, git, and `Invoke-WebRequest` all fail). **Exception: Python's OpenSSL
+  stack works** — `python scripts/download_godot_source.py` (urllib + ghproxy)
+  downloads fine without elevation (verified 2026-11). For non-Python
+  downloads a one-time elevated run is still needed. Plain `git clone` through
+  the proxy also fails even with `http.sslBackend=openssl` — download and
+  extract a zip instead.
 - **Godot crashes with signal 11 in the sandbox** if it cannot write
   `user://logs` (which resolves under `%APPDATA%\Godot`). This is a sandbox
   artifact, not a bug. Workaround for headless tests without elevation:
@@ -137,6 +208,15 @@ Old URLs 404. Current locations:
   correct `scons -n` dry run look failed). Capture output first
   (`| Out-String`), then slice.
 - **The `--quit-after N` flag counts frames, not seconds.**
+- **MSBuild dies silently in the sandbox** (exit 1, no output) when it uses
+  multi-node IPC — named pipes are blocked. Build with `/m:1 /nr:false`
+  (`build_bindings_assemblies.py` does this automatically).
+- **Sandboxed `dotnet restore` cannot reach nuget.org** (NU1301, schannel)
+  and cannot write `~/.nuget/packages` (the MSBuild SDK resolver extracts
+  there). Two workarounds: `python scripts/fetch_nuget_packages.py --out
+  .deps/nupkgs id:version ...` (Python TLS works) to pre-fill the local
+  folder feed, and set `NUGET_PACKAGES=<workspace>\.deps\nuget-cache` for the
+  build/restore commands.
 - SCons on this machine: `%APPDATA%\Python\Python311\Scripts\scons.exe`
   (v4.4). MSVC is Visual Studio 18 Community, found via vswhere
   (`%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe`).
@@ -186,6 +266,19 @@ with a headless engine smoke test on the Windows debug leg.
    `res://addons/fragile/bin/fragile.gdextension`.
 4. Headless run exits 0 and loads `main.tscn` whose root node is a `FWorld`
    instance — this exercises class registration end to end.
+5. After C#-relevant changes: `scripts/build_dotnet_bindings.ps1` succeeds,
+   `dotnet build project/fragile.csproj` exits 0 (compile-time typing), and
+   the .NET probe scene prints `DOTNET_INTEROP_PROBE: PASS` (runtime typing):
+
+   ```sh
+   <editor-with-custom-Api> --headless --path project --quit-after 60 --scene res://tests/dotnet_interop.tscn
+   ```
+
+   The C# probe must run on an editor whose `GodotSharp/Api` holds the custom
+   bindings (the `-InstallApiTo` target, e.g. `.deps/godot-4.7-fragile`);
+   the stock Program Files editor loads the stock bindings and wraps
+   extension classes at their base type. Then delete the generated
+   `project/tests/dotnet_interop_result.txt`.
 
 Failure signatures:
 
@@ -195,6 +288,10 @@ Failure signatures:
 | `Can't open dynamic library` | Lib path in `[libraries]` does not match build output |
 | Signal 11 right at startup, `Could not create directory: 'user://logs'` | Sandbox blocked `%APPDATA%` writes — use the APPDATA redirect, not a code fix |
 | exit 1 from `scons` with broken pipe text | Likely the PowerShell `-First` truncation artifact; re-run capturing full output |
+| `NU1101: Unable to find package Godot.NET.Sdk` | Local NuGet feed empty or `nuget.config` missing — run `scripts/build_dotnet_bindings.ps1` first |
+| Glue generation produces no `FWorld.cs` | Extension not loaded during `--generate-mono-glue` — check `extension_list.cfg` (pitfall #1) and `.deps/generate-mono-glue.log` |
+| C# wrappers come back as base classes (`Node2D` instead of `FWorld`) | Editor is running stock `GodotSharp/Api` — install the custom Api via `-InstallApiTo` and use that editor |
+| C# probe scene crashes at engine exit after writing `PASS` | Sandbox shutdown noise (0xC00000xx); the result file is authoritative |
 
 ## Conventions
 

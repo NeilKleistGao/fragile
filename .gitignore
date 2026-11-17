@@ -53,5 +53,7 @@ compile_commands.json
 *.exp
 *.lib
 
+scripts/__pycache__/
+
 # Uncomment if your project does not version PCK files as runtime dependencies.
 # *.pck

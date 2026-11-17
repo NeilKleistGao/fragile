@@ -20,6 +20,7 @@ void initialize_fragile_module(ModuleInitializationLevel p_level) {
 #endif
 
 	ClassDB::register_class<fragile::framework::FInfo>();
+	ClassDB::register_class<fragile::framework::FGameMode>();
 	ClassDB::register_class<fragile::framework::FActor>();
 	ClassDB::register_class<fragile::framework::FLevel>();
 	ClassDB::register_class<fragile::framework::FWorld>();

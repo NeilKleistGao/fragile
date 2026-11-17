@@ -39,6 +39,26 @@ public partial class FWorldProbe : FWorld
             "GetClass()=\"" + level.GetClass() + "\" csharpType=" + level.GetType().FullName);
         level.Free();
 
+        var mode = new FGameMode();
+        Check("typed construction new FGameMode()", mode.GetClass() == "FGameMode",
+            "GetClass()=\"" + mode.GetClass() + "\" csharpType=" + mode.GetType().FullName);
+        Check("GetWorld() starts empty", mode.GetWorld() == null);
+        SetGameMode(mode);
+        Check("SetGameMode links: mode.GetWorld() == this", mode.GetWorld() == this);
+        Check("GetGameMode() returns the linked mode", GetGameMode() == mode);
+        SetGameMode(null);
+        Check("SetGameMode(null) unlinks without freeing", mode.GetWorld() == null && GodotObject.IsInstanceValid(mode));
+        mode.Free();
+
+        var template = new FGameMode();
+        var prefab = new PackedScene();
+        Check("PackedScene.Pack(FGameMode) succeeds", prefab.Pack(template) == Error.Ok);
+        template.Free();
+        SetGameModePrefab(prefab);
+        Check("SetGameModePrefab accepts an FGameMode-rooted scene", GetGameModePrefab() == prefab);
+        SetGameModePrefab(null);
+        Check("SetGameModePrefab(null) clears", GetGameModePrefab() == null);
+
         GodotObject inst = ClassDB.Instantiate("FWorld").AsGodotObject();
         Check("ClassDB.Instantiate(\"FWorld\") wraps as typed FWorld", inst is FWorld,
             inst == null ? "null" : "GetClass()=\"" + inst.GetClass() + "\" csharpType=" + inst.GetType().FullName);

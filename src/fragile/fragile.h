@@ -2,6 +2,7 @@
 #define __FRAGILE_H__
 
 #include "fragile/framework/actor.h"
+#include "fragile/framework/game_mode.h"
 #include "fragile/framework/info.h"
 #include "fragile/framework/level.h"
 #include "fragile/framework/world.h"

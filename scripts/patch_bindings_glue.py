@@ -34,6 +34,11 @@ This script rewrites, idempotently and deterministically:
     managed types that differ from the native type, never the case here.
   * Generated/Constructors.cs (GodotSharp and GodotSharpEditor) - adds
     marked wrapper entries for every generated class missing from the map.
+  * Generated/GeneratedIncludes.props - adds the GodotObjects sources that
+    the generator wrote but left out of the compile list (GodotSharp.csproj
+    disables default items and imports this file, so a missing entry means
+    the wrapper class is never compiled and Constructors.cs fails with
+    CS0246 on the extension-class names).
 
 NOTE: detection is entirely static / after-construction; never call ClassDB
 bindings during GodotObject type initialization - singleton wrapper creation
@@ -49,6 +54,41 @@ import sys
 
 PATCH_MARK = "[fragile-bindings patch]"
 ENTRY_MARK = " // " + PATCH_MARK
+XML_MARK = " <!-- " + PATCH_MARK + " -->"
+
+
+def patch_generated_includes(generated_dir):
+    """Add extension-class GodotObjects sources missing from the props."""
+    props_path = os.path.join(generated_dir, "GeneratedIncludes.props")
+    objects_dir = os.path.join(generated_dir, "GodotObjects")
+    if not os.path.isfile(props_path) or not os.path.isdir(objects_dir):
+        print("no GeneratedIncludes.props at " + props_path)
+        return
+
+    with open(props_path, encoding="utf-8") as handle:
+        text = handle.read()
+
+    missing = []
+    for name in sorted(os.listdir(objects_dir)):
+        if not name.endswith(".cs"):
+            continue
+        if ('GodotObjects\\' + name + '"') not in text and ('GodotObjects/' + name + '"') not in text:
+            missing.append(name)
+
+    if not missing:
+        print("GeneratedIncludes.props already complete: " + props_path)
+        return
+
+    entries = "".join(
+        '    <Compile Include="Generated\\GodotObjects\\' + name + '" />' + XML_MARK + "\n"
+        for name in missing
+    )
+    lines = text.splitlines(keepends=True)
+    insert_at = max(i for i, line in enumerate(lines) if "<Compile " in line) + 1
+    lines.insert(insert_at, entries)
+    with open(props_path, "w", encoding="utf-8", newline="") as handle:
+        handle.write("".join(lines))
+    print("patched: " + props_path + " (+" + str(len(missing)) + " entries: " + ", ".join(missing) + ")")
 
 
 def patch_godot_object_base(path):
@@ -185,10 +225,13 @@ def main():
     glue = os.path.join(root, "modules", "mono", "glue", "GodotSharp")
     patch_godot_object_base(os.path.join(glue, "GodotSharp", "Core", "GodotObject.base.cs"))
     patch_script_manager_bridge(os.path.join(glue, "GodotSharp", "Core", "Bridge", "ScriptManagerBridge.cs"))
-    patch_constructors(os.path.join(glue, "GodotSharp", "Generated"), os.path.join(glue, "GodotSharp", "Generated", "GodotObjects"))
+    godot_gen = os.path.join(glue, "GodotSharp", "Generated")
+    patch_constructors(godot_gen, os.path.join(godot_gen, "GodotObjects"))
+    patch_generated_includes(godot_gen)
     editor_gen = os.path.join(glue, "GodotSharpEditor", "Generated")
     if os.path.isdir(editor_gen):
         patch_constructors(editor_gen, os.path.join(editor_gen, "GodotObjects"))
+        patch_generated_includes(editor_gen)
     return 0
 
 

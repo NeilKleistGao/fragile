@@ -1,4 +1,12 @@
-<Project Sdk="Godot.NET.Sdk/4.7.0-fragile-v0.1.0.local">
+<Project Sdk="Godot.NET.Sdk/4.7.0">
+  <!--
+    The Sdk version is exactly 4.7.0 on purpose: the stock Godot editor
+    rewrites any other Sdk value to its own (GodotTools EnsureGodotSdkIsUpToDate)
+    and keeps the old file as fragile.csproj.old. nuget.config maps the
+    Godot.NET.Sdk id to the local alias package (scripts/alias_sdk_package.py),
+    whose SdkPackageVersions.props pulls GodotSharp 4.7.0-fragile-* - the
+    custom bindings with the fragile types. See AGENTS.md.
+  -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>

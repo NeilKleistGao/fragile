@@ -61,10 +61,15 @@ The pipeline mirrors the limboai packages (`Godot.NET.Sdk/4.7.2-limboai-*.gha`):
      `build_assemblies.py`, skipping the unrelated GodotTools step) with
      `--push-nupkgs-local .deps/nupkgs`, producing the `GodotSharp`,
      `GodotSharpEditor`, `Godot.SourceGenerators` and `Godot.NET.Sdk` nupkgs;
+   - runs `scripts/alias_sdk_package.py`, which repacks the custom
+     `Godot.NET.Sdk` as version `4.7.0` and evicts the `Godot.*` packages
+     from the NuGet caches (see the csproj note below);
    - `-InstallApiTo <editor-dir>` copies the built `GodotSharp/Api/{Debug,Release}`
      into an editor directory — **required for editor-mode runs**, see below.
-2. `nuget.config` (repo root) feeds `.deps/nupkgs`; `project/fragile.csproj`
-   pins `Sdk="Godot.NET.Sdk/4.7.0-fragile-v0.1.0.local"`.
+2. `nuget.config` (repo root) feeds `.deps/nupkgs` and maps the four `Godot.*`
+   package ids to that feed only. `project/fragile.csproj` intentionally uses
+   `Sdk="Godot.NET.Sdk/4.7.0"` — the exact value the stock editor insists on
+   (see below) — and the alias package resolves it to the custom bindings.
 3. Probe: `project/tests/FWorldProbe.cs` (a C# class deriving from the C++
    `FWorld`) in `project/tests/dotnet_interop.tscn`; running that scene and
    finding `DOTNET_INTEROP_PROBE: PASS` in
@@ -96,10 +101,25 @@ Pipeline pitfalls:
   setup_csharp_script_binding` skips `classinfo->gdextension` on purpose,
   godotengine/godot#75955), and (c) stores the *ancestor's* creation_func for
   them (`class_db.cpp` extension registration), so `new FLevel()` would build
-  a `Node2D`. The patcher fixes all three on the generated glue. Do not
+  a `Node2D`. (d) `GeneratedIncludes.props` lists only API_CORE sources (same
+  filter), so the extension-class wrappers would never be compiled and
+  `Constructors.cs` fails with `CS0246` on their names. The patcher fixes all
+  four on the generated glue. Do not
   "detect" extension classes via ClassDB bindings during `GodotObject` type
   initialization — singleton wrapper creation re-enters binding creation and
   crashes the runtime with 0xC0000005.
+- **The stock editor rewrites `project/fragile.csproj`'s `Sdk` attribute**
+  (`GodotTools.EnsureGodotSdkIsUpToDate` keeps exactly
+  `Godot.NET.Sdk/<engine version>` and rewrites anything else, leaving the old
+  file as `fragile.csproj.old`). Fighting the rewrite loses, so the repo
+  embraces it: the csproj uses that exact value and
+  `scripts/alias_sdk_package.py` repacks the custom `Godot.NET.Sdk` as version
+  `4.7.0`, whose `SdkPackageVersions.props` still pulls the custom
+  `GodotSharp`. `nuget.config`'s package source mapping keeps the stock
+  packages out of the restore; the alias script also evicts a cached stock
+  `godot.net.sdk/4.7.0` (the NuGet global cache is keyed by id+version and
+  would otherwise win silently — the classic cause of `CS0246: FWorld ...`
+  after the editor opened the project).
 - **Editor-mode runs load the bindings from `<exe dir>/GodotSharp/Api/<cfg>`**
   (`modules/mono/godotsharp_dirs.cpp`, no override exists). Point
   `-InstallApiTo` at the editor that will run the project — a portable editor
@@ -199,9 +219,13 @@ Old URLs 404. Current locations:
   redirect `APPDATA` at the process level
   (`$env:APPDATA = <workspace>\.godot-appdata` before launching the engine).
 - **`ERROR: Failed to read the root certificate store`** is sandbox noise and
-  appears on every run; ignore it. Likewise `.NET: Failed to load project
-  assembly` is expected when using the mono editor build on this C++-only
-  project.
+  appears on every run; ignore it. `.NET: Failed to load project assembly`
+  (with `TypeLoadException: Could not load type 'Godot.FWorld'` on stderr) is
+  the stock-vs-custom bindings mismatch, not a broken build: the project
+  assembly is compiled against the custom `GodotSharp` and cannot load against
+  an editor that still runs stock `GodotSharp/Api`. Harmless for C++/GDScript
+  work; for C# work run the `-InstallApiTo` editor (`.deps\godot-4.7-fragile`)
+  or copy the built Api into the editor you use (see failure signatures).
 - **PowerShell pipeline truncation mimics failure**: piping a native command
   into `Select-Object -First N` closes the pipe early and the process exits 1
   with a broken-pipe error even when the real work succeeded (this made a
@@ -211,12 +235,13 @@ Old URLs 404. Current locations:
 - **MSBuild dies silently in the sandbox** (exit 1, no output) when it uses
   multi-node IPC — named pipes are blocked. Build with `/m:1 /nr:false`
   (`build_bindings_assemblies.py` does this automatically).
-- **Sandboxed `dotnet restore` cannot reach nuget.org** (NU1301, schannel)
-  and cannot write `~/.nuget/packages` (the MSBuild SDK resolver extracts
-  there). Two workarounds: `python scripts/fetch_nuget_packages.py --out
-  .deps/nupkgs id:version ...` (Python TLS works) to pre-fill the local
-  folder feed, and set `NUGET_PACKAGES=<workspace>\.deps\nuget-cache` for the
-  build/restore commands.
+- **Sandboxed `dotnet restore` cannot reach nuget.org** (NU1301/NU1900,
+  schannel). The `Godot.*` packages are safe: `nuget.config` maps them to the
+  local feed and pins `globalPackagesFolder` to `.deps/nuget-cache` (inside
+  the repo), so restores never need `~/.nuget` or network. Remaining
+  nuget.org dependencies can be pre-filled with
+  `python scripts/fetch_nuget_packages.py --out .deps/nupkgs id:version ...`
+  (Python TLS works).
 - SCons on this machine: `%APPDATA%\Python\Python311\Scripts\scons.exe`
   (v4.4). MSVC is Visual Studio 18 Community, found via vswhere
   (`%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe`).
@@ -288,9 +313,13 @@ Failure signatures:
 | `Can't open dynamic library` | Lib path in `[libraries]` does not match build output |
 | Signal 11 right at startup, `Could not create directory: 'user://logs'` | Sandbox blocked `%APPDATA%` writes — use the APPDATA redirect, not a code fix |
 | exit 1 from `scons` with broken pipe text | Likely the PowerShell `-First` truncation artifact; re-run capturing full output |
-| `NU1101: Unable to find package Godot.NET.Sdk` | Local NuGet feed empty or `nuget.config` missing — run `scripts/build_dotnet_bindings.ps1` first |
+| `NU1101: Unable to find package Godot.NET.Sdk` | Local NuGet feed empty or the `4.7.0` alias is missing — run `scripts/build_dotnet_bindings.ps1` (or just `python scripts/alias_sdk_package.py --feed .deps/nupkgs`); `nuget.config` maps the `Godot.*` ids to the local feed only |
 | Glue generation produces no `FWorld.cs` | Extension not loaded during `--generate-mono-glue` — check `extension_list.cfg` (pitfall #1) and `.deps/generate-mono-glue.log` |
+| `error CS0246` on `FActor`/`FGameMode`/`FInfo`/... in `Constructors.cs` | `GeneratedIncludes.props` missing the extension-class sources (glue gap d) — run `scripts/patch_bindings_glue.py`, then rebuild |
+| `error CS0246: The type or namespace name 'FWorld'` in `project/tests/*.cs` | The build resolved a stock `Godot.NET.Sdk 4.7.0` cached before the alias existed — run `python scripts/alias_sdk_package.py --feed .deps/nupkgs` to evict it, then restore again |
 | C# wrappers come back as base classes (`Node2D` instead of `FWorld`) | Editor is running stock `GodotSharp/Api` — install the custom Api via `-InstallApiTo` and use that editor |
+| `TypeLoadException: Could not load type 'Godot.FWorld'` / `.NET: Failed to load project assembly` | Editor runs stock `GodotSharp/Api` while the project assembly needs the custom bindings — use the `-InstallApiTo` editor or copy `.deps/godot-api-output/GodotSharp/Api/*` into `<editor>/GodotSharp/Api/` |
+| `MissingMethodException: Method not found: '...Godot.FWorld.Set...'` | The editor's installed `GodotSharp/Api` predates the last bindings build — re-run `build_dotnet_bindings.ps1` with `-InstallApiTo <editor>` (or copy `.deps/godot-api-output/GodotSharp/Api/*` into `<editor>/GodotSharp/Api/`) |
 | C# probe scene crashes at engine exit after writing `PASS` | Sandbox shutdown noise (0xC00000xx); the result file is authoritative |
 
 ## Conventions

@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   fragile .NET bindings pipeline (limboai-style): generate C# bindings that
-  include the fragile GDExtension classes (FInfo/FActor/FLevel/FWorld), build
+  include the fragile GDExtension classes (FInfo/FActor/FLevel/FGameMode/FWorld), build
   versioned GodotSharp NuGet packages and push them to a local NuGet feed.
 
 .DESCRIPTION
@@ -15,11 +15,19 @@
        engine's build_assemblies.py that skips the unrelated GodotTools step),
        which builds GodotSharp / GodotSharpEditor / Godot.SourceGenerators /
        Godot.NET.Sdk and copies the .nupkg files to the local feed.
+    4. Runs scripts/alias_sdk_package.py: repacks the custom Godot.NET.Sdk as
+       version 4.7.0 - the exact Sdk value the stock editor's
+       GodotTools.EnsureGodotSdkIsUpToDate will not rewrite - and evicts the
+       Godot.* packages from the NuGet caches (nuget.config pins the cache
+       inside the repo). nuget.config maps the
+       Godot.* package ids to the local feed only, so a rewritten csproj keeps
+       resolving to the custom bindings.
 
   After it succeeds, the Godot project builds against the custom SDK via
-  project/fragile.csproj (Sdk="Godot.NET.Sdk/<version>") and nuget.config
-  at the repo root. C# code can then use the fragile types directly
-  (GetNode<FWorld>(...), class MyLevel : FLevel, IntelliSense, ...).
+  project/fragile.csproj (Sdk="Godot.NET.Sdk/4.7.0", resolved to the custom
+  packages through the alias and nuget.config's package source mapping) and
+  nuget.config at the repo root. C# code can then use the fragile types
+  directly (GetNode<FWorld>(...), class MyLevel : FLevel, IntelliSense, ...).
 
   REGENERATE whenever _bind_methods() signatures change: the generated
   bindings carry the method-compatibility hashes of the current build.
@@ -135,6 +143,7 @@ if (-not $SkipGlue) {
     $glueDir = Join-Path $GodotSource 'modules\mono\glue'
     Write-Host ('[2/3] generating mono glue into ' + $glueDir + ' (this takes a few minutes) ...')
     $env:APPDATA = Join-Path $repoRoot '.godot-appdata'   # sandbox-safe user:// redirect
+    $runStart = Get-Date
     $ErrorActionPreference = 'Continue'                  # native stderr must not stop us
     $out = & $GodotExe --headless --editor --path $projectDir --generate-mono-glue $glueDir 2>&1 | Out-String
     $ErrorActionPreference = 'Stop'
@@ -146,9 +155,35 @@ if (-not $SkipGlue) {
     if (-not (Test-Path -LiteralPath $probe)) {
         throw 'Glue generation did not produce "' + $probe + '" - the fragile classes were not registered (check extension_list.cfg and the log).'
     }
-    Write-Host '    OK: FWorld.cs (and FInfo/FActor/FLevel) generated.'
+    $probeItem = Get-Item -LiteralPath $probe
+    if ($probeItem.LastWriteTime -lt $runStart) {
+        # A stale FWorld.cs from an earlier run would hide a core-only
+        # generation; the stale wrappers would then ship old method hashes.
+        throw 'Glue generation did not regenerate FWorld.cs (file is stale from ' + $probeItem.LastWriteTime + '). The fragile classes were not in ClassDB this run - check extension_list.cfg and .deps/generate-mono-glue.log.'
+    }
+    Write-Host '    OK: FWorld.cs (and FInfo/FActor/FLevel/FGameMode) regenerated.'
 } else {
     Write-Host '[2/3] skipped glue generation (-SkipGlue).'
+}
+
+# --- Keep project/fragile.csproj on the canonical Sdk value ------------------
+# The stock editor rewrites any Sdk value other than exactly
+# "Godot.NET.Sdk/<engine version>" (GodotTools EnsureGodotSdkIsUpToDate) and
+# keeps the old file as fragile.csproj.old. That exact value is canonical:
+# nuget.config maps Godot.NET.Sdk to the local alias package built by
+# scripts/alias_sdk_package.py, which pulls the custom GodotSharp.
+$csproj = Join-Path $projectDir 'fragile.csproj'
+$csprojText = Get-Content -LiteralPath $csproj -Raw
+$wanted = 'Sdk="Godot.NET.Sdk/' + $engineVersion + '"'
+if ($csprojText -notmatch [regex]::Escape($wanted)) {
+    $csprojText = [regex]::Replace($csprojText, 'Sdk="Godot\.NET\.Sdk/[^"]*"', $wanted)
+    Set-Content -LiteralPath $csproj -Value $csprojText -Encoding utf8 -NoNewline
+    Write-Host ('[csproj] normalized to ' + $wanted)
+}
+$csprojOld = Join-Path $projectDir 'fragile.csproj.old'
+if (Test-Path -LiteralPath $csprojOld) {
+    Remove-Item -LiteralPath $csprojOld -Force
+    Write-Host '[csproj] removed editor backup fragile.csproj.old'
 }
 
 # --- Patch the glue for extension classes (idempotent) ----------------------
@@ -192,6 +227,19 @@ if ($missing) {
     throw 'Packages missing from feed: ' + ($missing -join ', ')
 }
 
+# --- Build the Godot.NET.Sdk alias package and evict stale stock caches -----
+# See scripts/alias_sdk_package.py: the editor-mandated Sdk value
+# "Godot.NET.Sdk/<engine version>" resolves through this alias to the custom
+# bindings, so rewritten csproj files keep working.
+Write-Host ('[alias] building Godot.NET.Sdk ' + $engineVersion + ' alias ...')
+$ErrorActionPreference = 'Continue'
+$out = & python (Join-Path $PSScriptRoot 'alias_sdk_package.py') --feed $NuGetFeed --alias-version $engineVersion 2>&1 | Out-String
+$ErrorActionPreference = 'Stop'
+Write-Host $out
+if ($LASTEXITCODE -ne 0) {
+    throw 'alias_sdk_package.py failed (exit ' + $LASTEXITCODE + ')'
+}
+
 # --- 5. Optionally install the API assemblies into an editor directory -----
 # The editor ALWAYS loads its runtime bindings from <exe dir>/GodotSharp/Api
 # (modules/mono/godotsharp_dirs.cpp, TOOLS_ENABLED branch) - there is no
@@ -218,4 +266,4 @@ Write-Host 'NuGet feed now contains:'
 Get-ChildItem -LiteralPath $NuGetFeed -Filter '*.nupkg' | ForEach-Object { Write-Host ('  ' + $_.Name) }
 Write-Host ''
 Write-Host ('Next: dotnet build "' + (Join-Path $projectDir 'fragile.csproj') + '"')
-Write-Host ('      (project/fragile.csproj must reference Godot.NET.Sdk/' + $pkgVersion + ')')
+Write-Host ('      (project/fragile.csproj uses Sdk Godot.NET.Sdk/' + $engineVersion + ', resolved to the custom bindings via the alias package)')

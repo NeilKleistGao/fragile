@@ -272,7 +272,11 @@ with a headless engine smoke test on the Windows debug leg.
 - **godot-cpp in CI**: the dev machine carries `godot-cpp/` as a plain
   downloaded (gitignored) directory; the workflow clones
   `10.0.0-stable` when checkout did not provide it, so the repo works with or
-  without a submodule.
+  without a submodule. The two can drift (the dev copy had
+  `Wrapped::_notification` as `virtual` while `10.0.0-stable` has it
+  non-virtual, so MSVC accepted an `override` GCC rightly rejected). CI is the
+  reference: `_notification` is dispatched by the `GDCLASS` macro, not by
+  virtual dispatch — never mark it `override`.
 - The smoke-test legs replicate AGENTS.md pitfall #1 on purpose (editor import
   first, then the run) and grep the failure signatures from the checklist —
   edit them together.

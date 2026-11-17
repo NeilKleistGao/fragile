@@ -50,7 +50,8 @@ protected:
 	static constexpr const char* s_serialization_level_name = "level";
 	static constexpr const char* s_serialization_type_name = "type";
 
-	void _notification(int p_what) override;
+	void _notification(int p_what);
+
 public:
 	/**
 	 * @brief Serializes the current level into @p data.

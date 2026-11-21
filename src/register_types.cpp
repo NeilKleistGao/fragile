@@ -15,8 +15,8 @@ void initialize_fragile_module(ModuleInitializationLevel p_level) {
 		return;
 	}
 
-#if GODOT_VERSION_MAJOR != 4 || GODOT_VERSION_MINOR != 7
-	WARN_PRINT_ONCE_ED("Fragile is only tested on Godot 4.7. Other versions may not be fully supported.")
+#if GODOT_VERSION_MAJOR != FRAGILE_EXPECTED_GODOT_MAJOR_VERSION || GODOT_VERSION_MINOR != FRAGILE_EXPECTED_GODOT_MINOR_VERSION
+	WARN_PRINT_ONCE_ED("This Godot version may not be fully supported.")
 #endif
 
 	ClassDB::register_class<fragile::framework::FInfo>();
@@ -24,6 +24,10 @@ void initialize_fragile_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<fragile::framework::FActor>();
 	ClassDB::register_class<fragile::framework::FLevel>();
 	ClassDB::register_class<fragile::framework::FWorld>();
+	ClassDB::register_class<fragile::framework::FPawn>();
+	ClassDB::register_class<fragile::framework::FCharacter>();
+	ClassDB::register_abstract_class<fragile::framework::FController>();
+	ClassDB::register_class<fragile::framework::FPlayerController>();
 }
 
 void uninitialize_fragile_module(ModuleInitializationLevel p_level) {

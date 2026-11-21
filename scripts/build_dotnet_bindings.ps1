@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
   fragile .NET bindings pipeline (limboai-style): generate C# bindings that
-  include the fragile GDExtension classes (FInfo/FActor/FLevel/FGameMode/FWorld), build
+  include the fragile GDExtension classes (FInfo/FActor/FLevel/FGameMode/FWorld,
+  FPawn/FCharacter/FController/FPlayerController), build
   versioned GodotSharp NuGet packages and push them to a local NuGet feed.
 
 .DESCRIPTION

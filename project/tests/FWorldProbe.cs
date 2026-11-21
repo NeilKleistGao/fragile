@@ -32,7 +32,6 @@ public partial class FWorldProbe : FWorld
         Check("probe node is FWorld (C# can inherit the C++ class)", this is FWorld);
         Check("GetClass() == \"FWorld\"", GetClass() == "FWorld");
         Check("typed GetNode<FWorld>(\".\") resolves (this node)", GetNode<FWorld>(".") != null);
-        Check("typed call Serialize(Dictionary) == Error.Ok", Serialize(new Godot.Collections.Dictionary()) == Error.Ok);
 
         var level = new FLevel();
         Check("typed construction new FLevel()", level.GetClass() == "FLevel",

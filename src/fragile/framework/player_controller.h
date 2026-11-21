@@ -14,8 +14,7 @@ namespace fragile::framework {
  * any level.
  *
  * FPlayerController itself adds no state and no behavior beyond
- * FController: serialization is the inherited no-op. Derived classes add
- * the actual input handling.
+ * FController. Derived classes add the actual input handling.
  */
 class FPlayerController : public FController {
 	GDCLASS(FPlayerController, FController)

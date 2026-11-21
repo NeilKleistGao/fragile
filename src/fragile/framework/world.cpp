@@ -10,8 +10,6 @@
 namespace fragile::framework {
 
 void FWorld::_bind_methods() {
-	godot::ClassDB::bind_method(godot::D_METHOD("serialize", "data"), &FWorld::serialize);
-	godot::ClassDB::bind_method(godot::D_METHOD("deserialize", "data"), &FWorld::deserialize);
 	godot::ClassDB::bind_method(godot::D_METHOD("open_level", "level_name"), &FWorld::open_level);
 
 	godot::ClassDB::bind_method(godot::D_METHOD("set_game_mode", "game_mode"), &FWorld::set_game_mode);
@@ -20,54 +18,6 @@ void FWorld::_bind_methods() {
 	godot::ClassDB::bind_method(godot::D_METHOD("set_game_mode_prefab", "prefab"), &FWorld::set_game_mode_prefab);
 	godot::ClassDB::bind_method(godot::D_METHOD("get_game_mode_prefab"), &FWorld::get_game_mode_prefab);
 	ADD_PROPERTY(godot::PropertyInfo(godot::Variant::OBJECT, "game_mode_prefab", godot::PROPERTY_HINT_RESOURCE_TYPE, "PackedScene"), "set_game_mode_prefab", "get_game_mode_prefab");
-}
-
-godot::Error FWorld::serialize(godot::Dictionary data) const {
-	if (data.has(s_serialization_level_name)) {
-	serialize_fail:
-		godot::print_error(godot::String("Cannot serialize world: ") + get_name());
-		return godot::Error::ERR_INVALID_DATA;
-	}
-
-	if (current_level != nullptr) {
-		auto level_data = godot::Dictionary();
-		level_data[s_serialization_type_name] = current_level->get_class();
-		if (current_level->serialize(level_data) != godot::Error::OK) {
-			goto serialize_fail;
-		}
-
-		data[s_serialization_level_name] = level_data;
-	}
-
-	return godot::Error::OK;
-}
-
-godot::Error FWorld::deserialize(const godot::Dictionary& data) {
-	if (data.has(s_serialization_level_name)) {
-		if (data[s_serialization_level_name].get_type() != godot::Variant::DICTIONARY) {
-		deserialize_fail:
-			godot::print_error(godot::String("Cannot deserialize world: ") + get_name());
-			return godot::Error::ERR_INVALID_DATA;
-		}
-
-		const godot::Dictionary d = data[s_serialization_level_name];
-		if (!d.has(s_serialization_type_name)) {
-			goto deserialize_fail;	// TODO: more error information?
-		}
-
-		const auto type = d[s_serialization_type_name].get_type();
-		if (type != godot::Variant::STRING && type != godot::Variant::STRING_NAME) {
-			goto deserialize_fail;	// TODO: more error information?
-		}
-
-		const auto* old_level = current_level;
-		open_level(d[s_serialization_type_name]);
-		if (current_level == nullptr || current_level == old_level || current_level->deserialize(d) != godot::Error::OK) {
-			goto deserialize_fail;	// TODO: more error information?
-		}
-	}
-
-	return godot::Error::OK;
 }
 
 void FWorld::open_level(const godot::StringName& level_name) {

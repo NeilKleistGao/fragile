@@ -14,9 +14,8 @@ namespace fragile::framework {
  * actor it is meant to be driven by an FController that takes possession of
  * it.
  *
- * FPawn itself adds no state and no behavior beyond FActor: serialization
- * is the inherited FActor one. Derived classes add the actual
- * representation of the entity.
+ * FPawn itself adds no state and no behavior beyond FActor. Derived
+ * classes add the actual representation of the entity.
  */
 class FPawn : public FActor {
 	GDCLASS(FPawn, FActor)

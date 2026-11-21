@@ -14,9 +14,8 @@ namespace fragile::framework {
  * character is the class meant to carry the mesh, movement and input
  * machinery shared by all such entities.
  *
- * FCharacter itself adds no state and no behavior beyond FPawn:
- * serialization is the inherited FActor one. Derived classes add the
- * actual representation.
+ * FCharacter itself adds no state and no behavior beyond FPawn. Derived
+ * classes add the actual representation.
  */
 class FCharacter : public FPawn {
 	GDCLASS(FCharacter, FPawn)

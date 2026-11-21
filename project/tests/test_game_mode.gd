@@ -22,7 +22,6 @@ func check(cond: bool, what: String) -> void:
 func _init() -> void:
 	test_registration()
 	test_world_link()
-	test_serialization()
 	# The scene tests wait for the first frame, so _ready has fired:
 	# game_mode_prefab spawning and the main.tscn child-node behaviour
 	# can only be observed with a live scene tree (see _process below).
@@ -51,7 +50,6 @@ func test_registration() -> void:
 	var mode = ClassDB.instantiate("FGameMode")
 	check(mode != null, "ClassDB.instantiate returns an instance")
 	check(mode.get_class() == "FGameMode", "instance reports class FGameMode")
-	check(mode.has_method("serialize"), "serialize is inherited from FInfo")
 	check(mode.has_method("get_world"), "get_world is exposed to scripts")
 	check(not mode.has_method("set_world"), "set_world stays internal")
 	mode.free()
@@ -103,18 +101,6 @@ func test_world_link() -> void:
 	world.set_game_mode(mode4)
 	world.free() # the world frees its game mode child with it
 	check(mode4.is_queued_for_deletion(), "the world frees its game mode")
-
-
-## FGameMode adds no state of its own: it inherits FInfo's state-less
-## serialization.
-func test_serialization() -> void:
-	print("== serialization ==")
-	var mode = ClassDB.instantiate("FGameMode")
-	var data: Dictionary = {}
-	check(mode.serialize(data) == OK, "serialize always succeeds")
-	check(data.is_empty(), "serialize stores nothing")
-	check(mode.deserialize(data) == OK, "deserialize always succeeds")
-	mode.free()
 
 
 ## game_mode_prefab: the root must derive from FGameMode, the prefab can

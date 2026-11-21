@@ -14,8 +14,8 @@ namespace fragile::framework {
  *
  * FController is registered as abstract and cannot be instantiated
  * directly - use FPlayerController or another derived class. It adds no
- * state and no behavior beyond FInfo: serialization is the inherited
- * no-op. Derived classes add the actual direction logic.
+ * state and no behavior beyond FInfo. Derived classes add the actual
+ * direction logic.
  */
 class FController : public FInfo {
 	GDCLASS(FController, FInfo)

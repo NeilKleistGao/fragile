@@ -20,9 +20,8 @@ class FWorld;
  * A world starts out without a game mode and keeps it that way until one
  * is set explicitly. Freeing the game mode early clears the world's link.
  *
- * FGameMode itself adds no rules and no state beyond FInfo: serialization
- * is the inherited no-op. Derived classes add the actual rules and extend
- * serialize()/deserialize() as needed.
+ * FGameMode itself adds no rules and no state beyond FInfo. Derived
+ * classes add the actual rules.
  */
 class FGameMode : public FInfo {
 	GDCLASS(FGameMode, FInfo)

@@ -5,6 +5,8 @@
 
 namespace fragile::framework {
 
+class FController;
+
 /**
  * @brief Base class for actors that can be possessed by a controller.
  *
@@ -14,14 +16,33 @@ namespace fragile::framework {
  * actor it is meant to be driven by an FController that takes possession of
  * it.
  *
- * FPawn itself adds no state and no behavior beyond FActor. Derived
- * classes add the actual representation of the entity.
+ * Never free a pawn from user code: its lifetime belongs to the
+ * framework. The FLevel that holds the pawn frees it along with the rest
+ * of its actors.
+ *
+ * Its only state is the possessing FController, reported by
+ * get_controller(). Derived classes add the actual representation of
+ * the entity.
  */
 class FPawn : public FActor {
 	GDCLASS(FPawn, FActor)
 
+private:
+	FController* controller{ nullptr };
+
 protected:
 	static void _bind_methods();
+
+public:
+	/**
+	 * @brief Returns the controller that possesses this pawn.
+	 *
+	 * @return The controlling FController set by FController::control, or
+	 *         @c nullptr when this pawn is unpossessed.
+	 */
+	FController* get_controller() const;
+
+	friend class FController;
 };
 
 }	 // namespace fragile::framework

@@ -41,12 +41,11 @@ public partial class FWorldProbe : FWorld
         var mode = new FGameMode();
         Check("typed construction new FGameMode()", mode.GetClass() == "FGameMode",
             "GetClass()=\"" + mode.GetClass() + "\" csharpType=" + mode.GetType().FullName);
-        Check("GetWorld() starts empty", mode.GetWorld() == null);
+        Check("GetGameMode() starts empty", GetGameMode() == null);
         SetGameMode(mode);
-        Check("SetGameMode links: mode.GetWorld() == this", mode.GetWorld() == this);
         Check("GetGameMode() returns the linked mode", GetGameMode() == mode);
         SetGameMode(null);
-        Check("SetGameMode(null) unlinks without freeing", mode.GetWorld() == null && GodotObject.IsInstanceValid(mode));
+        Check("SetGameMode(null) unlinks without freeing", GetGameMode() == null && GodotObject.IsInstanceValid(mode));
         mode.Free();
 
         var template = new FGameMode();

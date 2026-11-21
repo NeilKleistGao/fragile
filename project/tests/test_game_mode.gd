@@ -1,5 +1,6 @@
 extends SceneTree
-# Unit tests for FGameMode and the game_mode_prefab feature
+# Unit tests for FGameMode, its character/controller prefabs, and the
+# world's game mode ownership and game_mode_prefab feature
 # (src/fragile/framework/game_mode.h, src/fragile/framework/world.h).
 #
 # Run from the repository root:
@@ -21,14 +22,15 @@ func check(cond: bool, what: String) -> void:
 
 func _init() -> void:
 	test_registration()
-	test_world_link()
+	test_game_mode_ownership()
 	# The scene tests wait for the first frame, so _ready has fired:
-	# game_mode_prefab spawning and the main.tscn child-node behaviour
-	# can only be observed with a live scene tree (see _process below).
+	# game_mode_prefab spawning and the scene-child behaviour can only be
+	# observed with a live scene tree (see _process below).
 
 
 func _process(_delta: float) -> bool:
 	test_game_mode_prefab()
+	test_prefabs()
 	test_scene_child()
 
 	if failures == 0:
@@ -40,8 +42,8 @@ func _process(_delta: float) -> bool:
 
 
 ## FGameMode is registered with ClassDB and instantiable by class name.
-## The script-visible surface is get_world(); set_world() stays internal
-## and is driven through FWorld::set_game_mode.
+## Its script-visible surface is the two prefab properties; the link to
+## the world is driven through FWorld::set_game_mode instead.
 func test_registration() -> void:
 	print("== registration ==")
 	check(ClassDB.class_exists("FGameMode"), "ClassDB knows FGameMode")
@@ -50,57 +52,53 @@ func test_registration() -> void:
 	var mode = ClassDB.instantiate("FGameMode")
 	check(mode != null, "ClassDB.instantiate returns an instance")
 	check(mode.get_class() == "FGameMode", "instance reports class FGameMode")
-	check(mode.has_method("get_world"), "get_world is exposed to scripts")
-	check(not mode.has_method("set_world"), "set_world stays internal")
+	check(mode.has_method("set_character_prefab") and mode.has_method("get_character_prefab"), "character_prefab is exposed to scripts")
+	check(mode.has_method("set_controller_prefab") and mode.has_method("get_controller_prefab"), "controller_prefab is exposed to scripts")
 	mode.free()
 
 
-## The world owns its game mode: set_game_mode adds it as a child node
-## and frees the previous one; freeing the world frees its game mode too.
-func test_world_link() -> void:
-	print("== world link ==")
+## The world owns its game mode: set_game_mode makes it a child node and
+## frees the previous one; freeing the world frees its game mode too. A
+## game mode is never stolen from another parent, while one authored
+## below this world is linked in place.
+func test_game_mode_ownership() -> void:
+	print("== game mode ownership ==")
 	var world = ClassDB.instantiate("FWorld")
 	var mode = ClassDB.instantiate("FGameMode")
 	check(world.get_game_mode() == null, "fresh world has no game mode")
-	check(mode.get_world() == null, "fresh game mode is unlinked")
+	check(mode.get_parent() == null, "fresh game mode has no parent")
 
 	world.set_game_mode(mode)
 	check(world.get_game_mode() == mode, "set_game_mode stores the game mode")
-	check(mode.get_world() == world, "the game mode points back at the world")
 	check(mode.get_parent() == world, "the game mode becomes a child of the world")
 
 	world.set_game_mode(mode) # setting the same game mode again is a no-op
 	check(world.get_game_mode() == mode and mode.get_parent() == world, "re-setting the same game mode is a no-op")
 
-	var parented = ClassDB.instantiate("FGameMode")
-	world.add_child(parented) # a plain child, not the game mode
+	var stranger = ClassDB.instantiate("FGameMode")
+	var other = Node2D.new()
+	other.add_child(stranger) # parented to somebody else, not the world
 	print("  (expected errors follow)")
-	world.set_game_mode(parented) # it has a parent: never stolen
-	check(world.get_game_mode() == mode, "a game mode that already has a parent is refused")
-	check(parented.get_parent() == world, "the refused game mode keeps its parent")
-	world.remove_child(parented)
-	parented.free()
+	world.set_game_mode(stranger) # never stolen from an existing parent
+	check(world.get_game_mode() == mode, "a game mode parented elsewhere is refused")
+	check(stranger.get_parent() == other, "the refused game mode keeps its parent")
+	other.free()
 
 	var mode2 = ClassDB.instantiate("FGameMode")
 	world.set_game_mode(mode2)
 	check(world.get_game_mode() == mode2, "set_game_mode replaces the game mode")
-	check(mode2.get_parent() == world and mode2.get_world() == world, "the new game mode is the world's child")
-	check(mode.get_parent() == null and mode.get_world() == null, "the replaced game mode leaves the tree unlinked")
+	check(mode2.get_parent() == world, "the new game mode is the world's child")
+	check(mode.get_parent() == null, "the replaced game mode leaves the tree")
 	check(mode.is_queued_for_deletion(), "the replaced game mode is freed by the world")
 
 	world.set_game_mode(null)
 	check(world.get_game_mode() == null, "null clears the game mode")
-	check(mode2.get_world() == null and mode2.is_queued_for_deletion(), "the cleared game mode is freed and unlinked")
+	check(mode2.get_parent() == null and mode2.is_queued_for_deletion(), "the cleared game mode is freed and unlinked")
 
 	var mode3 = ClassDB.instantiate("FGameMode")
 	world.set_game_mode(mode3)
-	mode3.free() # freeing the game mode clears the world's link
-	check(world.get_game_mode() == null, "freeing the game mode clears the world's link")
-
-	var mode4 = ClassDB.instantiate("FGameMode")
-	world.set_game_mode(mode4)
 	world.free() # the world frees its game mode child with it
-	check(mode4.is_queued_for_deletion(), "the world frees its game mode")
+	check(mode3.is_queued_for_deletion(), "the world frees its game mode")
 
 
 ## game_mode_prefab: the root must derive from FGameMode, the prefab can
@@ -136,34 +134,83 @@ func test_game_mode_prefab() -> void:
 	if spawned:
 		check(mode.get_class() == "FGameMode", "the spawned game mode has the prefab's class")
 		check(mode.get_parent() == world, "the spawned game mode is the world's child")
-		check(mode.get_world() == world, "the spawned game mode links back to the world")
 	root.remove_child(world)
 	world.free()
 	check(spawned and mode.is_queued_for_deletion(), "the spawned game mode is freed with the world")
 
 
-## A game mode node authored in a scene (main.tscn) stays unloaded by
-## default - the world uses it only when set explicitly. The node stays
-## where the scene put it and dies with its parent like any other node.
+## The character and controller prefabs follow the same rules as the
+## world's game_mode_prefab: the scene root must derive from the matching
+## fragile class, and null clears the prefab.
+func test_prefabs() -> void:
+	print("== character/controller prefabs ==")
+	var mode = ClassDB.instantiate("FGameMode")
+	check(mode.get_character_prefab() == null, "fresh game mode has no character prefab")
+	check(mode.get_controller_prefab() == null, "fresh game mode has no controller prefab")
+
+	var character_scene = PackedScene.new()
+	var character_template = ClassDB.instantiate("FCharacter")
+	character_scene.pack(character_template)
+	character_template.free()
+	mode.set_character_prefab(character_scene)
+	check(mode.get_character_prefab() == character_scene, "an FCharacter-rooted scene is accepted as the character prefab")
+
+	var controller_scene = PackedScene.new()
+	var controller_template = ClassDB.instantiate("FPlayerController")
+	controller_scene.pack(controller_template)
+	controller_template.free()
+	mode.set_controller_prefab(controller_scene)
+	check(mode.get_controller_prefab() == controller_scene, "an FController-rooted scene is accepted as the controller prefab")
+
+	print("  (expected errors follow)")
+	mode.set_character_prefab(controller_scene) # wrong root class
+	check(mode.get_character_prefab() == character_scene, "a non-FCharacter-rooted scene is refused")
+	mode.set_controller_prefab(character_scene) # wrong root class
+	check(mode.get_controller_prefab() == controller_scene, "a non-FController-rooted scene is refused")
+
+	mode.set_character_prefab(null)
+	check(mode.get_character_prefab() == null, "null clears the character prefab")
+	mode.set_controller_prefab(null)
+	check(mode.get_controller_prefab() == null, "null clears the controller prefab")
+	mode.free()
+
+
+## The default test project's main scene ships without a game mode, and a
+## game mode node authored in a scene stays unloaded by default - the
+## world links it only when set explicitly, and then in place: the node
+## stays where the scene put it and dies with its parent like any other
+## node.
 func test_scene_child() -> void:
 	print("== scene child ==")
-	var scene: PackedScene = load("res://main.tscn")
-	check(scene != null, "main.tscn loads")
+	var main: PackedScene = load("res://main.tscn")
+	check(main != null, "main.tscn loads")
+	var default_world = main.instantiate()
+	root.add_child(default_world) # let _ready fire first
+	check(default_world.get_node_or_null("FGameMode") == null, "main.tscn holds no FGameMode child")
+	check(default_world.get_game_mode() == null, "the default scene ships without a game mode")
+	root.remove_child(default_world)
+	default_world.free()
+
+	# The scene-child behaviour is covered with a scene packed here:
+	# the default main scene carries no game mode to author against.
+	var template = ClassDB.instantiate("FWorld")
+	var mode_template = ClassDB.instantiate("FGameMode")
+	mode_template.name = "FGameMode"
+	template.add_child(mode_template)
+	mode_template.owner = template
+	var scene = PackedScene.new()
+	check(scene.pack(template) == OK, "a scene with a game mode child can be packed")
+	template.free()
 	var world = scene.instantiate()
 	root.add_child(world) # let _ready fire first
 	check(world.get_game_mode() == null, "a scene child game mode is not loaded automatically")
 	var mode = world.get_node_or_null("FGameMode")
-	check(mode != null, "main.tscn holds an FGameMode child")
+	check(mode != null, "the packed scene holds an FGameMode child")
 	var linked: bool = mode != null # a freed reference reads back as null
 	if linked:
-		print("  (expected errors follow)")
-		world.set_game_mode(mode) # still parented: refused, never stolen
-		check(world.get_game_mode() == null, "set_game_mode refuses the still-parented scene child")
-		world.remove_child(mode) # the caller detaches; set_game_mode never reparents
-		world.set_game_mode(mode)
-		check(world.get_game_mode() == mode, "explicit set_game_mode links the detached scene child")
-		check(mode.get_parent() == world, "the linked game mode is the world's child again")
-		check(mode.get_world() == world, "the linked game mode points back at the world")
+		world.set_game_mode(mode) # already below this world: linked in place
+		check(world.get_game_mode() == mode, "explicit set_game_mode links the scene child")
+		check(mode.get_parent() == world, "the linked game mode stays where the scene put it")
 	root.remove_child(world)
 	world.free()
 	check(linked and mode.is_queued_for_deletion(), "the world frees its game mode child")

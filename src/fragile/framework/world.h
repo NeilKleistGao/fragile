@@ -20,8 +20,6 @@ class FWorld : public godot::Node2D {
 	GDCLASS(FWorld, godot::Node2D)
 
 private:
-	friend class FGameMode;	 // a freed game mode drops its world's link
-
 	FLevel* current_level{ nullptr };
 
 	/**
@@ -39,6 +37,8 @@ private:
 	 * set_game_mode_prefab().
 	 */
 	godot::PackedScene* game_mode_prefab{ nullptr };
+
+	static FWorld* instance;
 
 protected:
 	static void _bind_methods();
@@ -61,17 +61,15 @@ public:
 	/**
 	 * @brief Makes @p game_mode this world's game mode and child node.
 	 *
-	 * The world owns its game mode: @p game_mode is added below this world
-	 * in the scene tree and linked back through FGameMode::set_world(), and
-	 * a previously set game mode is removed from the tree and freed.
-	 * Passing @c nullptr clears the game mode the same way.
+	 * The world owns its game mode: @p game_mode becomes a child node of
+	 * this world and a previously set game mode is removed from the tree
+	 * and freed. Passing @c nullptr clears the game mode the same way.
+	 * A game mode authored below this world in a scene is linked in place
+	 * and stays where the scene put it; a game mode that already has
+	 * another parent is refused with an error and never stolen.
 	 *
-	 * The game mode must not have a parent yet - the world adopts it as
-	 * its child and never steals it from an existing parent. A call with
-	 * an already-parented game mode is refused with an error and changes
-	 * nothing.
-	 *
-	 * @param game_mode Parentless game mode to own, or @c nullptr to clear.
+	 * @param game_mode Game mode to own - parentless or already a child
+	 *                  of this world - or @c nullptr to clear.
 	 */
 	void set_game_mode(FGameMode* game_mode);
 
@@ -103,6 +101,22 @@ public:
 	[[nodiscard]] godot::PackedScene* get_game_mode_prefab() const;
 
 	void _ready() override;
+
+	void _enter_tree() override;
+
+	void _exit_tree() override;
+
+	/**
+	 * @brief Returns the one world that currently owns the scene tree.
+	 *
+	 * Bound to scripts as the static @c FWorld.get_current_world(). The
+	 * current world is the FWorld that has entered the scene tree; it is
+	 * cleared again when that world leaves the tree or is freed.
+	 *
+	 * @return The current FWorld, or @c nullptr while no world is in the
+	 *         scene tree.
+	 */
+	static FWorld* get_current_world();
 };
 
 }	 // namespace fragile::framework

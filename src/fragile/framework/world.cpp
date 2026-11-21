@@ -9,6 +9,8 @@
 
 namespace fragile::framework {
 
+FWorld* FWorld::instance = nullptr;
+
 void FWorld::_bind_methods() {
 	godot::ClassDB::bind_method(godot::D_METHOD("open_level", "level_name"), &FWorld::open_level);
 
@@ -18,6 +20,8 @@ void FWorld::_bind_methods() {
 	godot::ClassDB::bind_method(godot::D_METHOD("set_game_mode_prefab", "prefab"), &FWorld::set_game_mode_prefab);
 	godot::ClassDB::bind_method(godot::D_METHOD("get_game_mode_prefab"), &FWorld::get_game_mode_prefab);
 	ADD_PROPERTY(godot::PropertyInfo(godot::Variant::OBJECT, "game_mode_prefab", godot::PROPERTY_HINT_RESOURCE_TYPE, "PackedScene"), "set_game_mode_prefab", "get_game_mode_prefab");
+
+	godot::ClassDB::bind_static_method("FWorld", godot::D_METHOD("get_current_world"), &FWorld::get_current_world);
 }
 
 void FWorld::open_level(const godot::StringName& level_name) {
@@ -47,25 +51,21 @@ void FWorld::set_game_mode(FGameMode* game_mode) {
 		return;
 	}
 
-	// Assertion: the world adopts the game mode as its own child, so the
-	// caller must hand over one that has no parent yet. A game mode is
-	// never stolen from an existing parent.
-	ERR_FAIL_COND_MSG(game_mode != nullptr && game_mode->get_parent() != nullptr, "Cannot set game mode: the game mode already has a parent.");
+	// Assertion: the world adopts the game mode as its own child and
+	// never steals it from another parent - hand over a parentless game
+	// mode or one that is already below this world.
+	ERR_FAIL_COND_MSG(game_mode != nullptr && game_mode->get_parent() != nullptr && game_mode->get_parent() != this, "Cannot set game mode: the game mode already has a parent.");
 
 	if (this->game_mode != nullptr) {
 		FGameMode* old_game_mode = this->game_mode;
 		this->game_mode = nullptr;
-		old_game_mode->set_world(nullptr);
-		if (old_game_mode->get_parent() == this) {
-			remove_child(old_game_mode);
-		}
+		remove_child(old_game_mode);
 		old_game_mode->queue_free();
 	}
 
 	this->game_mode = game_mode;
-	if (this->game_mode != nullptr) {
-		this->game_mode->set_world(this);
-		add_child(this->game_mode);
+	if (this->game_mode != nullptr && this->game_mode->get_parent() == nullptr) {
+		add_child(this->game_mode);	 // a game mode below this world is adopted in place
 	}
 }
 
@@ -96,9 +96,24 @@ void FWorld::_ready() {
 
 	if (game_mode == nullptr && game_mode_prefab != nullptr) {
 		if (auto* mode = cast_to<FGameMode>(game_mode_prefab->instantiate()); mode != nullptr) {
-			set_game_mode(mode);	// links it and adds it as a child node
+			set_game_mode(mode);
 		}
 	}
+}
+
+void FWorld::_enter_tree() {
+	Node2D::_enter_tree();
+	ERR_FAIL_COND_MSG(instance != nullptr, "Multiple world definitions.");
+	instance = this;
+}
+
+void FWorld::_exit_tree() {
+	Node2D::_exit_tree();
+	instance = nullptr;
+}
+
+FWorld* FWorld::get_current_world() {
+	return instance;
 }
 
 void FWorld::_notification(int p_what) {

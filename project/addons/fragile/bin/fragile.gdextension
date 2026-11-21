@@ -12,3 +12,14 @@ linux.debug.x86_64 = "./libfragile.linux.template_debug.x86_64.so"
 linux.release.x86_64 = "./libfragile.linux.template_release.x86_64.so"
 macos.debug = "./libfragile.macos.template_debug.dylib"
 macos.release = "./libfragile.macos.template_release.dylib"
+
+[icons]
+
+FInfo  = "res://addons/fragile/icons/info.svg"
+FActor = "res://addons/fragile/icons/actor.svg"
+FLevel = "res://addons/fragile/icons/level.svg"
+FWorld = "res://addons/fragile/icons/world.svg"
+FGameMode = "res://addons/fragile/icons/game_mode.svg"
+FPawn = "res://addons/fragile/icons/pawn.svg"
+FCharacter = "res://addons/fragile/icons/character.svg"
+FController = "res://addons/fragile/icons/controller.svg"

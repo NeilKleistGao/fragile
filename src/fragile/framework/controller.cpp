@@ -12,22 +12,32 @@ void FController::_bind_methods() {
 
 void FController::control(FPawn* pawn) {
 	ERR_FAIL_COND_MSG(pawn == nullptr, "Cannot control a null pawn.");
-	remove_control();	 // one pawn at a time: release the previously controlled one
+	ERR_FAIL_COND_MSG(controlled_pawn != nullptr, "This controller has already controlled a pawn.");
+
 	if (FController* controller = pawn->get_controller(); controller != nullptr) {
 		controller->remove_control();
 	}
 
 	controlled_pawn = pawn;
 	controlled_pawn->controller = this;
+	add_child(controlled_pawn);
 }
 
-void FController::remove_control() {
-	if (controlled_pawn != nullptr) {
-		ERR_FAIL_COND_MSG(controlled_pawn->controller != this, "Inconsistent control relation.");
-		controlled_pawn->controller = nullptr;
+FPawn* FController::remove_control() {
+	FPawn* pawn = controlled_pawn;
+	controlled_pawn = nullptr;
+
+	if (pawn != nullptr) {
+		if (pawn->controller != this) {
+			godot::print_error("Inconsistent control relation: the controlled pawn does not report this controller.");
+			return nullptr;
+		}
+
+		pawn->controller = nullptr;
+		remove_child(pawn);
 	}
 
-	controlled_pawn = nullptr;
+	return pawn;
 }
 
 }	 // namespace fragile::framework

@@ -10,8 +10,8 @@ namespace fragile::framework {
  *
  * Mirrors Unreal Engine's APlayerController: the link between a human
  * player and the game world. It translates the player's input into
- * actions on the pawn it possesses and, like every FInfo, lives outside
- * any level.
+ * actions on the pawn it possesses and, like every FActor, is a scene
+ * tree node that can be placed or spawned in a level.
  *
  * FPlayerController itself adds no state and no behavior beyond
  * FController. Derived classes add the actual input handling.

@@ -67,6 +67,7 @@ func test_possession() -> void:
 
 	controller.control(p1)
 	check(p1.get_controller() == controller, "control() links the pawn to its controller")
+	check(p1.get_parent() == null, "the pawn is never mounted under its controller (Y-sorting)")
 
 	controller.control(p1) # possessing the same pawn again is a no-op
 	check(p1.get_controller() == controller, "possessing the same pawn again is a no-op")

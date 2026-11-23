@@ -19,6 +19,12 @@ class FPawn;
  * is its only state: control() takes possession of an FPawn and
  * remove_control() gives it up again. Derived classes add the actual
  * direction logic.
+ *
+ * The possessed pawn is deliberately never mounted under the
+ * controller as a child node: it must stay a child of its level so
+ * that Y-sorting can order every pawn by its Y position. Mounting the
+ * pawn under the controller would pull it out of the level's Y-sorted
+ * children and break that ordering.
  */
 class FController : public FInfo {
 	GDCLASS(FController, FInfo)
@@ -38,7 +44,9 @@ public:
 	 * pawn at a time - possessing @p pawn releases the previously
 	 * controlled pawn - and a pawn is possessed by one controller at a
 	 * time - possessing an already possessed pawn releases it from its
-	 * previous controller first. Neither node is moved or freed.
+	 * previous controller first. Neither node is moved or freed - the
+	 * pawn stays under its level for Y-sorting (see the class note
+	 * above).
 	 *
 	 * @param pawn Pawn to possess; @c nullptr is refused with an error.
 	 */

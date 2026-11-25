@@ -11,8 +11,13 @@ config_version=5
 [application]
 
 config/name="fragile"
-run/main_scene="res://main.tscn"
+run/main_scene="uid://b3tfheoh8yrst"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
 
 [dotnet]
 

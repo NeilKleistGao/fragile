@@ -32,8 +32,10 @@ This script rewrites, idempotently and deterministically:
     re-wraps with the object's real class when a binding for it exists. The
     throw-away base wrapper is safe to drop: its IntPtr constructor only ties
     managed types that differ from the native type, never the case here.
-  * Generated/Constructors.cs (GodotSharp and GodotSharpEditor) - adds
-    marked wrapper entries for every generated class missing from the map.
+  * Generated/Constructors.cs (GodotSharp) / Generated/EditorConstructors.cs
+    (GodotSharpEditor) - adds marked wrapper entries for every generated class
+    missing from the map, using the factory dictionary identifier the file
+    actually declares (BuiltInMethodConstructors vs builtInMethodConstructors).
   * Generated/GeneratedIncludes.props - adds the GodotObjects sources that
     the generator wrote but left out of the compile list (GodotSharp.csproj
     disables default items and imports this file, so a missing entry means
@@ -157,14 +159,42 @@ def patch_script_manager_bridge(path):
     print("patched: " + path)
 
 
+def find_constructors_file(ctor_dir):
+    """Locate the generated wrapper-factory source of one assembly.
+
+    GodotSharp writes Generated/Constructors.cs while GodotSharpEditor writes
+    Generated/EditorConstructors.cs. Hardcoding the former name made the
+    patcher skip the editor assembly entirely ("no Constructors.cs at ...").
+    """
+    for name in ("Constructors.cs", "EditorConstructors.cs"):
+        candidate = os.path.join(ctor_dir, name)
+        if os.path.isfile(candidate):
+            return candidate
+    if os.path.isdir(ctor_dir):
+        for name in sorted(os.listdir(ctor_dir)):
+            if name.endswith("Constructors.cs"):
+                return os.path.join(ctor_dir, name)
+    return None
+
+
 def patch_constructors(ctor_dir, objects_dir):
-    path = os.path.join(ctor_dir, "Constructors.cs")
-    if not os.path.isfile(path):
-        print("no Constructors.cs at " + path)
+    path = find_constructors_file(ctor_dir)
+    if path is None:
+        print("no *Constructors.cs under " + ctor_dir)
         return
 
     with open(path, encoding="utf-8") as handle:
         text = handle.read()
+
+    # The factory dictionary is BuiltInMethodConstructors in GodotSharp but
+    # builtInMethodConstructors (the parameter of AddEditorConstructors) in
+    # GodotSharpEditor. Discover the identifier instead of hardcoding either
+    # spelling - the wrong one is a CS0103 in the other assembly.
+    dict_match = re.search(r'\b([A-Za-z_][A-Za-z0-9_]*)\.Add\("', text)
+    if dict_match is None:
+        print("no factory .Add() entries in " + path)
+        return
+    dict_name = dict_match.group(1)
 
     official = set()
     for line in text.splitlines():
@@ -198,15 +228,17 @@ def patch_constructors(ctor_dir, objects_dir):
                 handle.write(source)
             print("disabled ancestor ctor: " + file_path)
 
-        if ENTRY_MARK not in text.split(class_name)[0] and ('Add("' + native_name + '"') not in text:
+        # Idempotent: an entry for this native name is either official or
+        # already appended by an earlier run of this script.
+        if ('Add("' + native_name + '"') not in text:
             missing.append((class_name, native_name))
 
     if not missing:
-        print("Constructors.cs already complete: " + path)
+        print(os.path.basename(path) + " already complete: " + path)
         return
 
     entries = "".join(
-        "    BuiltInMethodConstructors.Add(\"" + native + "\", ptr => new " + cls + "(ptr));" + ENTRY_MARK + "\n"
+        "    " + dict_name + ".Add(\"" + native + "\", ptr => new " + cls + "(ptr));" + ENTRY_MARK + "\n"
         for cls, native in missing
     )
     lines = text.splitlines(keepends=True)
@@ -214,7 +246,7 @@ def patch_constructors(ctor_dir, objects_dir):
     lines.insert(insert_at, entries)
     with open(path, "w", encoding="utf-8", newline="") as handle:
         handle.write("".join(lines))
-    print("patched: " + path + " (+" + str(len(missing)) + " entries: " + ", ".join(n for _, n in missing) + ")")
+    print("patched: " + path + " (+" + str(len(missing)) + " entries via " + dict_name + ": " + ", ".join(n for _, n in missing) + ")")
 
 
 def main():

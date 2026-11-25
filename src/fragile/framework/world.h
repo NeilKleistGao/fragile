@@ -5,6 +5,8 @@
 #include "fragile/framework/level.h"
 
 #include <godot_cpp/classes/node2d.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/ref.hpp>
 
 namespace fragile::framework {
 
@@ -34,9 +36,15 @@ private:
 	 * @brief Scene whose root derives from FGameMode, spawned at ready.
 	 *
 	 * Assigned through the @c game_mode_prefab property and validated by
-	 * set_game_mode_prefab().
+	 * set_game_mode_prefab(). Held as @c godot::Ref so the scene stays
+	 * alive for as long as this world references it - a bare
+	 * godot::PackedScene* owns no reference and dangles as soon as the
+	 * last Ref elsewhere drops the resource (RefCounted members must be
+	 * godot::Ref<T>, never a raw pointer).
 	 */
-	godot::PackedScene* game_mode_prefab{ nullptr };
+	godot::Ref<godot::PackedScene> game_mode_prefab;
+
+	godot::Ref<godot::PackedScene> default_level_prefab;
 
 	static FWorld* instance;
 
@@ -70,8 +78,9 @@ public:
 	 *
 	 * @param game_mode Game mode to own - parentless or already a child
 	 *                  of this world - or @c nullptr to clear.
+	 * @param keep
 	 */
-	void set_game_mode(FGameMode* game_mode);
+	void set_game_mode(FGameMode* game_mode, bool keep);
 
 	/**
 	 * @brief Returns this world's game mode.
@@ -91,14 +100,18 @@ public:
 	 *
 	 * @param prefab Scene whose root is an FGameMode subclass, or @c nullptr.
 	 */
-	void set_game_mode_prefab(godot::PackedScene* prefab);
+	void set_game_mode_prefab(const godot::Ref<godot::PackedScene>& prefab);
 
 	/**
 	 * @brief Returns the scene used to spawn the game mode at ready.
 	 *
 	 * @return The assigned PackedScene, or @c nullptr when none is set.
 	 */
-	[[nodiscard]] godot::PackedScene* get_game_mode_prefab() const;
+	[[nodiscard]] godot::Ref<godot::PackedScene> get_game_mode_prefab() const;
+
+	void set_default_level_prefab(const godot::Ref<godot::PackedScene>& prefab);
+
+	[[nodiscard]] godot::Ref<godot::PackedScene> get_default_level_prefab() const;
 
 	void _ready() override;
 

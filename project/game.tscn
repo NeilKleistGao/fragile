@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://b3tfheoh8yrst"]
+
+[ext_resource type="PackedScene" uid="uid://crp6v80a8h1i8" path="res://default_game_mode.tscn" id="1_80nbo"]
+
+[node name="Game" type="Control" unique_id=385958351]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="." unique_id=1654771574]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+stretch_shrink = 4
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer" unique_id=1304244415]
+handle_input_locally = false
+size = Vector2i(480, 270)
+render_target_update_mode = 4
+
+[node name="FWorld" type="FWorld" parent="SubViewportContainer/SubViewport" unique_id=1030500282]
+game_mode_prefab = ExtResource("1_80nbo")
+
+[node name="UI" type="Control" parent="." unique_id=2032082658]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2

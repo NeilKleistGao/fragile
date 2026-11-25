@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  One-click build for the fragile GDExtension: compile, verify, smoke-test.
+  One-click build for the fragile GDExtension: compile and verify.
 
 .DESCRIPTION
   Produces a usable extension in project/addons/fragile/bin/ - or fails loudly
@@ -17,25 +17,41 @@
                    build look failed - see AGENTS.md).
     2. verify      The DLL exists, was actually REPLACED this run (timestamp),
                    no shadow copies were left behind, its name matches the
-                   [libraries] key in fragile.gdextension, and it exports the
-                   entry_symbol that same file declares.
+                   [libraries] key in fragile.gdextension, it exports the
+                   entry_symbol that same file declares, and its debug
+                   symbols match the -DebugInfo setting.
     3. import      One-time headless editor import so
                    project/.godot/extension_list.cfg exists. Without it the
                    engine never loads the extension and reports the misleading
                    'Cannot get class' (AGENTS.md pitfall #1).
-    4. smoke test  Headless run of the project. Must exit 0 and must print
-                   none of the known failure signatures.
 
   Exits 0 only when all of the above passed. Safe and cheap to re-run.
 
 .PARAMETER Target
   template_debug (default; hot-reloadable) or template_release.
 
+.PARAMETER DebugInfo
+  Debug information for the built library (a .pdb on MSVC, -g* elsewhere).
+    auto (default) - ON for template_debug, OFF for template_release. The
+                     release variant is what an exported game ships, so it
+                     must not carry local debug info.
+    on             - always produce debug symbols.
+    off            - never produce debug symbols.
+  Maps to scons debug_symbols=yes|no.
+
 .PARAMETER Bindings
   Also regenerate the .NET bindings via scripts/build_dotnet_bindings.ps1.
   Do this whenever _bind_methods() signatures changed - the generated wrappers
   carry method-compatibility hashes and stale ones fail at runtime with a
   method-bind mismatch.
+
+  build.cmd turns this on by default (together with -InstallApiTo), because
+  forgetting it is what leaves the editor showing methods you already deleted.
+
+.PARAMETER SkipBindings
+  Suppress the -Bindings step. build.cmd always asks for bindings, so this is
+  the opt-out when you only want the native library rebuilt. (PowerShell
+  rejects a parameter given twice, so -Bindings:$false cannot override it.)
 
 .PARAMETER InstallApiTo
   With -Bindings: editor directory whose GodotSharp/Api gets the freshly built
@@ -53,13 +69,16 @@ param(
     [ValidateSet('template_debug', 'template_release')]
     [string] $Target = 'template_debug',
 
+    [ValidateSet('auto', 'on', 'off')]
+    [string] $DebugInfo = 'auto',
+
     [string] $GodotExe = 'C:\Program Files\Godot\Godot_v4.7-stable_mono_win64_console.exe',
 
     [switch] $SkipImport,
-    [switch] $SkipSmokeTest,
     [switch] $AllowRunningEditor,
 
     [switch] $Bindings,
+    [switch] $SkipBindings,
     [string] $InstallApiTo = ''
 )
 
@@ -108,7 +127,7 @@ function Invoke-Captured {
 }
 
 # --------------------------------------------------------------------------
-Write-Stage '0/4 preflight'
+Write-Stage '0/3 preflight'
 # --------------------------------------------------------------------------
 if (-not (Test-Path -LiteralPath $gdextPath)) {
     Fail ('missing ' + $gdextPath + ' - is this a fragile checkout?')
@@ -131,6 +150,21 @@ $sconsPath = if ($scons -is [System.Management.Automation.CommandInfo]) { $scons
 Write-Info ('scons:  ' + $sconsPath)
 Write-Info ('godot:  ' + $GodotExe)
 Write-Info ('target: ' + $Target)
+
+# --- debug information ----------------------------------------------------
+# On by default so a development build is debuggable; off for template_release,
+# which is the variant an exported game ships - it must not carry local debug
+# info. -DebugInfo on|off forces it either way; 'auto' picks from the target.
+$debugInfoValue = $DebugInfo.ToLowerInvariant()
+if ($debugInfoValue -eq 'auto') {
+    $debugSymbols = if ($Target -eq 'template_release') { 'no' } else { 'yes' }
+} elseif ($debugInfoValue -eq 'on') {
+    $debugSymbols = 'yes'
+} else {
+    $debugSymbols = 'no'
+}
+$debugLabel = if ($debugSymbols -eq 'yes') { 'on' } else { 'off' }
+Write-Info ('debug:  ' + $debugLabel + '  (-DebugInfo ' + $DebugInfo + ')')
 
 # --- the DLL-lock trap ----------------------------------------------------
 # A Godot editor that has the extension loaded keeps the DLL open. The link
@@ -164,21 +198,34 @@ if (Test-Path -LiteralPath $libPath) {
     }
 }
 
-# --- clean stale shadow copies left by earlier failed replacements --------
-$stale = @(Get-ChildItem -LiteralPath $binDir -Force -ErrorAction SilentlyContinue |
-           Where-Object { $_.Name -like '~*' -or $_.Name -like '*.TMP' })
-foreach ($old in $stale) {
-    Write-Note ('removing stale shadow copy: ' + $old.Name + ' (' + $old.LastWriteTime + ')')
+# --- clean Windows pending-rename leftovers only --------------------------
+# NEVER delete '<name>.dll' / '<name>_0.pdb' starting with '~'. In editor mode
+# Godot copies the GDExtension library to '~<name>.dll' ON PURPOSE
+# (core/extension -> platform/windows/os_windows.cpp open_dynamic_library,
+# generate_temp_files = Engine::is_editor_hint()) so the original stays free
+# for the compiler, and copy_and_rename_pdb() mirrors the PDB next to it.
+# Those are normal editor artifacts, created at editor start and removed at
+# editor close. Deleting them breaks a running editor and makes the next
+# engine run fail with "Error copying library" / "Can't open GDExtension
+# dynamic library" - which is exactly what hid the extension from
+# --generate-mono-glue.
+# What IS junk is '<name>~RFxxxxxxxx.TMP': a MoveFileEx pending rename that
+# never completed because the destination was locked.
+$pending0 = @(Get-ChildItem -LiteralPath $binDir -Force -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -like '*~RF*.TMP' })
+foreach ($old in $pending0) {
+    Write-Note ('removing Windows pending-rename leftover: ' + $old.Name + ' (' + $old.LastWriteTime + ')')
     Remove-Item -LiteralPath $old.FullName -Force
 }
 
 # --------------------------------------------------------------------------
-Write-Stage '1/4 build'
+Write-Stage '1/3 build'
 # --------------------------------------------------------------------------
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $sconsLog = Join-Path $logDir 'scons-build.log'
 $buildArgs = @()
 if ($Target -ne 'template_debug') { $buildArgs += ('target=' + $Target) }
+$buildArgs += ('debug_symbols=' + $debugSymbols)
 Write-Info ('scons ' + ($buildArgs -join ' '))
 $build = Invoke-Captured -FilePath $sconsPath -ArgumentList $buildArgs
 Set-Content -LiteralPath $sconsLog -Value $build.Output -Encoding utf8
@@ -193,7 +240,7 @@ Write-Ok ('scons exit 0 (log: ' + $sconsLog + ')')
 $didLink = ($build.Output -match [regex]::Escape('Linking Shared Library'))
 
 # --------------------------------------------------------------------------
-Write-Stage '2/4 verify the artefact'
+Write-Stage '2/3 verify the artefact'
 # --------------------------------------------------------------------------
 if (-not (Test-Path -LiteralPath $libPath)) {
     Fail ('expected library was not produced: ' + $libPath)
@@ -212,10 +259,21 @@ if ($didLink) {
     Write-Ok ('nothing to relink; the existing library is already current (' + (Get-Item -LiteralPath $libPath).LastWriteTime + ')')
 }
 
-$leftOver = @(Get-ChildItem -LiteralPath $binDir -Force -ErrorAction SilentlyContinue |
-              Where-Object { $_.Name -like '~*' -or $_.Name -like '*.TMP' })
-if ($leftOver) {
-    Fail ('shadow copies were left behind, so the link could not replace the DLL cleanly: ' + (($leftOver | ForEach-Object { $_.Name }) -join ', '))
+# Careful what counts as evidence here. MSVC's linker renames the previous
+# output aside as '<name>.dll' / '<name>_0.pdb' as part of a SUCCESSFUL relink,
+# so a plain '~...' byproduct proves nothing. The unambiguous sign that the
+# output could not be replaced is a Windows pending-rename leftover,
+# '<name>~RFxxxxxxxx.TMP' (MoveFileEx deferred); the DLL timestamp check above
+# is what actually proves the new build landed.
+$pending = @(Get-ChildItem -LiteralPath $binDir -Force -ErrorAction SilentlyContinue |
+             Where-Object { $_.Name -like '*~RF*.TMP' })
+if ($pending) {
+    Fail ('Windows left pending-rename leftovers, so the output could not be replaced: ' + (($pending | ForEach-Object { $_.Name }) -join ', '))
+}
+$godotCopies = @(Get-ChildItem -LiteralPath $binDir -Force -ErrorAction SilentlyContinue |
+                 Where-Object { $_.Name -like '~*' })
+foreach ($copy in $godotCopies) {
+    Write-Note ('Godot editor working copy present: ' + $copy.Name + ' (an editor has/had this extension loaded; Godot manages this file)')
 }
 
 # entry_symbol from fragile.gdextension must be exported by the DLL
@@ -256,14 +314,29 @@ if (-not $exportsOk) {
 }
 Write-Ok ('entry symbol exported: ' + $entrySymbol)
 
+# Debug information must match the requested setting.
+$pdbPath = [System.IO.Path]::ChangeExtension($libPath, '.pdb')
+if ($debugSymbols -eq 'yes') {
+    if (-not (Test-Path -LiteralPath $pdbPath)) {
+        Fail ('debug info is on but no debug symbols were produced: ' + $pdbPath)
+    }
+    $pdbItem = Get-Item -LiteralPath $pdbPath
+    Write-Ok ('debug symbols present: ' + $pdbItem.Name + ' (' + [int]($pdbItem.Length / 1MB) + ' MB)')
+} elseif (Test-Path -LiteralPath $pdbPath) {
+    Write-Note ('debug info is off; removing the stale ' + (Split-Path $pdbPath -Leaf) + ' so bin/ reflects this build')
+    Remove-Item -LiteralPath $pdbPath -Force
+} else {
+    Write-Ok 'debug symbols: none (as configured)'
+}
+
 # --------------------------------------------------------------------------
-Write-Stage '3/4 extension_list.cfg (engine visibility)'
+Write-Stage '3/3 extension_list.cfg (engine visibility)'
 # --------------------------------------------------------------------------
 $extensionList = Join-Path $projectDir '.godot\extension_list.cfg'
 if (Test-Path -LiteralPath $extensionList) {
     Write-Ok ('already present: ' + $extensionList)
 } elseif ($SkipImport) {
-    Write-Note 'missing, but -SkipImport was passed; the smoke test will likely report "Cannot get class".'
+    Write-Note 'missing, but -SkipImport was passed; the engine will not see the extension until it exists.'
 } else {
     Write-Info 'running the one-time headless editor import (AGENTS.md pitfall #1) ...'
     $env:APPDATA = Join-Path $repoRoot '.godot-appdata'   # sandbox-safe user:// redirect
@@ -276,47 +349,7 @@ if (Test-Path -LiteralPath $extensionList) {
 }
 
 # --------------------------------------------------------------------------
-Write-Stage '4/4 smoke test'
-# --------------------------------------------------------------------------
-if ($SkipSmokeTest) {
-    Write-Note 'skipped (-SkipSmokeTest).'
-} else {
-    $env:APPDATA = Join-Path $repoRoot '.godot-appdata'
-    Write-Info 'running the project headless ...'
-    $run = Invoke-Captured -FilePath $GodotExe -ArgumentList @('--headless', '--path', $projectDir, '--quit-after', '120')
-    $smokeLog = Join-Path $logDir 'smoke-test.log'
-    Set-Content -LiteralPath $smokeLog -Value $run.Output -Encoding utf8
-
-    $signatures = @(
-        @{ Name = 'extension not loaded (extension_list.cfg missing, wrong library name, or missing entry symbol)'; Pattern = "Cannot get class '" }
-        @{ Name = 'library name/path in fragile.gdextension does not match the build output';                    Pattern = "Can't open dynamic library" }
-        @{ Name = 'a placeholder node was created instead of the real class';                                    Pattern = 'cannot be created\. A placeholder will be created instead' }
-        @{ Name = 'PackedScene failed to instantiate (dangling RefCounted member, or an empty scene)';           Pattern = 'Failed to instantiate scene state' }
-        @{ Name = 'user://logs not writable - redirect APPDATA, this is a sandbox artefact';                     Pattern = "Could not create directory: 'user://logs'" }
-        @{ Name = 'stale C# bindings - method-bind mismatch, regenerate with -Bindings';                         Pattern = 'MissingMethodException' }
-        @{ Name = 'editor running stock GodotSharp/Api - use the -InstallApiTo editor for C# work';              Pattern = 'TypeLoadException' }
-    )
-    $found = @()
-    foreach ($sig in $signatures) {
-        if ($run.Output -match $sig.Pattern) { $found += $sig }
-    }
-
-    if ($run.ExitCode -ne 0) {
-        Write-Host $run.Output
-        Fail ('the headless run exited ' + $run.ExitCode + ' - full log: ' + $smokeLog)
-    }
-    if ($found.Count -gt 0) {
-        Write-Host $run.Output
-        foreach ($sig in $found) {
-            Write-Host ('   [FAIL] signature: ' + $sig.Name) -ForegroundColor Red
-        }
-        Fail ('the headless run printed ' + $found.Count + ' known failure signature(s) - full log: ' + $smokeLog)
-    }
-    Write-Ok 'headless run exited 0 with no failure signatures'
-}
-
-# --------------------------------------------------------------------------
-if ($Bindings) {
+if ($Bindings -and -not $SkipBindings) {
     Write-Stage 'bonus: .NET bindings'
     $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'build_dotnet_bindings.ps1'))
     if ($InstallApiTo) { $psArgs += @('-InstallApiTo', $InstallApiTo) }

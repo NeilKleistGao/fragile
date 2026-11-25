@@ -2,8 +2,10 @@
 """SConstruct for the 'fragile' GDExtension (Godot 4.7, godot-cpp v10).
 
 Usage:
-    scons                          # template_debug build for the current platform
-    scons target=template_release  # release build
+    scons                          # template_debug build, debug info ON
+    scons target=template_release  # release/export build, debug info OFF
+    scons debug_symbols=no         # force debug info off (any target)
+    scons debug_symbols=yes        # force debug info on (any target)
     scons compiledb=yes            # also emit compile_commands.json (CLion / clangd)
     scons compiledb=yes compile_commands.json   # emit the DB without compiling
 """
@@ -20,6 +22,40 @@ if not (os.path.isdir("godot-cpp") and os.listdir("godot-cpp")):
     print("       Run: git submodule add https://github.com/godotengine/godot-cpp.git godot-cpp")
     print("       Then: git submodule update --init --recursive")
     sys.exit(1)
+
+# --- debug symbols -------------------------------------------------------
+# Debug information (a .pdb on MSVC, -g* on GCC/Clang) is ON by default so a
+# development build is debuggable, and OFF for template_release: that is the
+# variant an exported game ships, and it must not carry local debug info.
+#
+#   scons                          -> debug info ON   (template_debug)
+#   scons target=template_release  -> debug info OFF  (export)
+#   scons debug_symbols=no         -> force OFF
+#   scons debug_symbols=yes        -> force ON
+#
+# godot-cpp reads debug_symbols straight off the SCons command line and
+# defaults it to OFF (godotcpp.py: get_cmdline_bool("debug_symbols",
+# env.dev_build)), so "auto" is resolved here and the plain yes/no is written
+# back into ARGUMENTS before its SConscript runs - its BoolVariable would
+# reject the value "auto" outright.
+def resolve_debug_symbols(arguments):
+    target = arguments.get("target", "template_debug").strip().lower()
+    value = arguments.get("debug_symbols", "auto").strip().lower()
+    if value in ("auto", ""):
+        resolved = "no" if target == "template_release" else "yes"
+    elif value in ("yes", "true", "on", "y", "1"):
+        resolved = "yes"
+    elif value in ("no", "false", "off", "n", "0"):
+        resolved = "no"
+    else:
+        print("ERROR: debug_symbols must be auto, yes or no (got: " + value + ")")
+        sys.exit(1)
+    arguments["debug_symbols"] = resolved
+    return resolved
+
+
+debug_symbols = resolve_debug_symbols(ARGUMENTS)
+print("debug symbols: " + ("on" if debug_symbols == "yes" else "off") + " (target=" + ARGUMENTS.get("target", "template_debug") + ")")
 
 # Pin the Godot API version this extension builds against (godot-cpp v10
 # supports 4.3 - 4.7). To target an exact engine build instead, use:

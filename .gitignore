@@ -52,6 +52,8 @@ compile_commands.json
 
 *.exp
 *.lib
+*.pdb
+*.ilk
 
 scripts/__pycache__/
 

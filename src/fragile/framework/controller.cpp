@@ -1,13 +1,14 @@
 
 #include "controller.h"
 
+#include "fragile/utils/register_helper.h"
 #include "pawn.h"
 
 namespace fragile::framework {
 
 void FController::_bind_methods() {
-	godot::ClassDB::bind_method(godot::D_METHOD("control", "pawn"), &FController::control);
-	godot::ClassDB::bind_method(godot::D_METHOD("remove_control"), &FController::remove_control);
+	ADD_METHOD(FController, control, "pawn");
+	ADD_METHOD(FController, remove_control);
 }
 
 void FController::control(FPawn* pawn) {

@@ -2,8 +2,12 @@
 #ifndef __FRAGILE_GAME_MODE_H__
 #define __FRAGILE_GAME_MODE_H__
 
-#include "godot_cpp/classes/packed_scene.hpp"
+#include "fragile/global.h"
+
 #include "info.h"
+
+#include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/ref.hpp>
 
 namespace fragile::framework {
 
@@ -35,9 +39,9 @@ protected:
 	static void _bind_methods();
 
 private:
-	godot::PackedScene* character_prefab{ nullptr };
+	Ref<PackedScene> character_prefab;
 
-	godot::PackedScene* controller_prefab{ nullptr };
+	Ref<PackedScene> controller_prefab;
 
 public:
 	/**
@@ -50,14 +54,14 @@ public:
 	 *
 	 * @param prefab Scene whose root is an FCharacter subclass, or @c nullptr.
 	 */
-	void set_character_prefab(godot::PackedScene* prefab);
+	void set_character_prefab(const Ref<PackedScene>& prefab);
 
 	/**
 	 * @brief Returns the scene used to spawn player characters.
 	 *
 	 * @return The assigned PackedScene, or @c nullptr when none is set.
 	 */
-	[[nodiscard]] godot::PackedScene* get_character_prefab() const;
+	[[nodiscard]] Ref<PackedScene> get_character_prefab() const;
 
 	/**
 	 * @brief Sets the scene used to spawn player controllers.
@@ -69,14 +73,14 @@ public:
 	 *
 	 * @param prefab Scene whose root is an FController subclass, or @c nullptr.
 	 */
-	void set_controller_prefab(godot::PackedScene* prefab);
+	void set_controller_prefab(const Ref<PackedScene>& prefab);
 
 	/**
 	 * @brief Returns the scene used to spawn player controllers.
 	 *
 	 * @return The assigned PackedScene, or @c nullptr when none is set.
 	 */
-	[[nodiscard]] godot::PackedScene* get_controller_prefab() const;
+	[[nodiscard]] Ref<PackedScene> get_controller_prefab() const;
 };
 
 }	 // namespace fragile::framework

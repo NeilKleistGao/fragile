@@ -1,6 +1,8 @@
 #ifndef __FRAGILE_F_INFO_H__
 #define __FRAGILE_F_INFO_H__
 
+#include "fragile/global.h"
+
 #include <godot_cpp/classes/node.hpp>
 
 namespace fragile::framework {
@@ -11,8 +13,8 @@ namespace fragile::framework {
  * Mirrors Unreal Engine's AInfo: it carries game information (rules, global
  * state) without being part of a level. FInfo has no state of its own.
  */
-class FInfo : public godot::Node {
-	GDCLASS(FInfo, godot::Node)
+class FInfo : public Node {
+	GDCLASS(FInfo, Node)
 
 protected:
 	static void _bind_methods();

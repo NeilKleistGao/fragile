@@ -1,19 +1,21 @@
 #include "level.h"
 
-#include <godot_cpp/classes/ref_counted.hpp>
+#include "fragile/utils/register_helper.h"
+#include "fragile/utils/type_check.h"
+
 #include <godot_cpp/core/class_db.hpp>
-#include <godot_cpp/core/memory.hpp>
 
 namespace fragile::framework {
 
 void FLevel::_bind_methods() {
-	godot::ClassDB::bind_method(godot::D_METHOD("spawn_actor", "actor_type_name", "actor_name"), &FLevel::spawn_actor);
+	ADD_METHOD(FLevel, add_actor, "actor");
+	ADD_PREFAB_PROPERTY(FLevel, override_game_mode);
 }
 
 void FLevel::add_actor(FActor* actor) {
 	for (const auto& v : actors) {
 		if (const auto* act = cast_to<FActor>(v.get_validated_object()); act != nullptr && act->get_name() == actor->get_name()) {
-			godot::print_error(godot::String("Duplicate actor name: ") + actor->get_name());
+			print_error(String("Duplicate actor name: ") + actor->get_name());
 			return;
 		}
 	}
@@ -22,22 +24,22 @@ void FLevel::add_actor(FActor* actor) {
 	add_child(actor);
 }
 
-FActor* FLevel::spawn_actor(const godot::StringName& actor_type_name, const godot::StringName& actor_name) {
-	if (godot::ClassDB::class_exists(actor_type_name) && godot::ClassDB::can_instantiate(actor_type_name)) {
-		Object* object = godot::ClassDB::instantiate(actor_type_name);
-		if (auto* actor = cast_to<FActor>(object); actor != nullptr) {
-			actor->set_name(actor_name);
-			add_actor(actor);
-			return actor;
-		}
-
-		if (object != nullptr && cast_to<godot::RefCounted>(object) == nullptr) {
-			godot::memdelete(object);
-		}
+void FLevel::set_override_game_mode(const Ref<PackedScene>& prefab) {
+	if (prefab.is_null()) {
+		override_game_mode = nullptr;
+		return;
 	}
 
-	godot::print_error(godot::String("Cannot create ") + actor_type_name);
-	return nullptr;
+	if (utils::is_scene_root_derived_from(prefab, StringName{ "FGameMode" })) {
+		override_game_mode = prefab;
+		return;
+	}
+
+	print_error("cannot set game_mode_prefab: the scene root does not derive from FGameMode.");
+}
+
+Ref<PackedScene> FLevel::get_override_game_mode() const {
+	return override_game_mode;
 }
 
 }	 // namespace fragile::framework

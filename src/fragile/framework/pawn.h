@@ -1,6 +1,7 @@
 #ifndef __FRAGILE_PAWN_H__
 #define __FRAGILE_PAWN_H__
 
+#include "fragile/global.h"
 #include "actor.h"
 
 namespace fragile::framework {
@@ -40,7 +41,7 @@ public:
 	 * @return The controlling FController set by FController::control, or
 	 *         @c nullptr when this pawn is unpossessed.
 	 */
-	FController* get_controller() const;
+	[[nodiscard]] FController* get_controller() const;
 
 	friend class FController;
 };

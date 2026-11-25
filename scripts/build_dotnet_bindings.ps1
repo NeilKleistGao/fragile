@@ -23,6 +23,10 @@
        inside the repo). nuget.config maps the
        Godot.* package ids to the local feed only, so a rewritten csproj keeps
        resolving to the custom bindings.
+    5. Copies the built GodotSharp/Api/{Debug,Release} into the editor
+       directory (the -InstallApiTo target, default: the -EditorPath
+       directory) unless -SkipApiInstall is given, which is what lets
+       editor-mode runs use the fragile types.
 
   After it succeeds, the Godot project builds against the custom SDK via
   project/fragile.csproj (Sdk="Godot.NET.Sdk/4.7.0", resolved to the custom
@@ -39,9 +43,24 @@
   automatically via scripts/download_godot_source.py when missing (Python's
   OpenSSL stack can do TLS in the sandbox; curl/git/schannel cannot).
 
-.PARAMETER GodotExe
-  Godot 4.7 .NET editor binary used for glue generation. Must match
-  GodotSource's engine version.
+.PARAMETER EditorPath
+  Godot 4.7 .NET editor used for glue generation AND as the default API
+  install target. Accept either the editor executable or its directory; a
+  directory is searched for the console build first. Defaults to the portable
+  C# editor under .deps/godot-4.7-fragile when it exists, otherwise to the
+  stock installed editor. Must match GodotSource's engine version.
+
+  -GodotExe is kept as an alias for backward compatibility.
+
+.PARAMETER InstallApiTo
+  Editor directory whose GodotSharp/Api/{Debug,Release} receives the freshly
+  built assemblies. Defaults to the -EditorPath directory when that directory
+  is writable; pass -SkipApiInstall to leave the editor untouched. Editor-mode
+  runs load bindings from <exe dir>/GodotSharp/Api only, so this is the step
+  that makes GetNode<FWorld>(...) / class MyLevel : FLevel work in the editor.
+
+.PARAMETER SkipApiInstall
+  Do not copy the built API assemblies into the editor directory.
 
 .PARAMETER BindingsVersion
   SemVer prerelease label appended to the engine version, e.g.
@@ -51,24 +70,86 @@
   into "fragile-v0.1..0".
 
 .EXAMPLE
-  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_dotnet_bindings.ps1
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_dotnet_bindings.ps1 -EditorPath .deps\godot-4.7-fragile
 
+  -EditorPath may also be the full path to Godot_v4.7-stable_mono_win64_console.exe.
   The script is unsigned; bare './scripts/build_dotnet_bindings.ps1' fails
   under restrictive execution policies (SecurityError), so invoke it with
   -ExecutionPolicy Bypass as shown.
 #>
 [CmdletBinding()]
 param(
+    # Editor used for glue generation and (by default) as the API install
+    # target: either the executable or the directory that holds it. -GodotExe
+    # is the old name, kept as an alias for existing invocations.
+    [Alias('GodotExe')]
+    [string] $EditorPath = '',
+
     [string] $GodotSource = '',
-    [string] $GodotExe = 'C:\Program Files\Godot\Godot_v4.7-stable_mono_win64_console.exe',
     [string] $BindingsVersion = 'fragile-v0.1.0.local',
     [string] $NuGetFeed = '',
     [string] $ApiOutputDir = '',
     [string] $InstallApiTo = '',
-    [switch] $SkipGlue
+    [switch] $SkipGlue,
+    [switch] $SkipApiInstall
 )
 
 $ErrorActionPreference = 'Stop'
+
+function ConvertTo-CleanPath([string] $Path) {
+    # Tolerate the two things a copied Windows path usually carries: wrapping
+    # quotes and a trailing separator.
+    $p = $Path.Trim()
+    # Strip quotes on EACH side, not only a matched pair: passing
+    # "C:\...\Godot_..._console.exe\" through a native command line makes the
+    # backslash escape the closing quote, so the child can receive a path with
+    # a trailing '"' (exactly how 'C:\Program Files\Godot"' was produced).
+    $p = $p -replace '^["'']+', ''
+    $p = $p -replace '["'']+$', ''
+    $p = $p -replace '[\\/]+$', ''
+    $p = $p.Trim('"').Trim("'").Trim()
+    if ($p -match '"') {
+        throw ('Path still contains a quote after normalization: ' + $p + ' - pass the path as one argument, e.g. -EditorPath "C:\Program Files\Godot".')
+    }
+    if ($p -match '^[A-Za-z]:$') { $p = $p + '\' }   # keep drive roots usable
+    return $p
+}
+
+function Resolve-GodotEditor([string] $Path) {
+    # Accepts either the editor executable or the directory that holds it, so
+    # one -EditorPath parameter covers both habits. The console build is
+    # preferred because glue generation's diagnostics arrive on stdout/stderr.
+    $p = ConvertTo-CleanPath $Path
+    if (-not $p) { throw 'No editor path given. Pass -EditorPath <editor dir or exe>.' }
+    if (-not (Test-Path -LiteralPath $p)) { throw ('Editor path not found: ' + $p) }
+    $item = Get-Item -LiteralPath $p
+    if ($item.PSIsContainer) {
+        $dir = $item.FullName
+        $exe = @(Get-ChildItem -LiteralPath $dir -Filter 'Godot*_console.exe' -File -ErrorAction SilentlyContinue) |
+               Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if (-not $exe) {
+            $exe = @(Get-ChildItem -LiteralPath $dir -Filter 'Godot*.exe' -File -ErrorAction SilentlyContinue) |
+                   Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        }
+        if (-not $exe) {
+            throw ('No Godot editor executable (*.exe) found in ' + $dir + '. Pass -EditorPath <path to Godot_*_console.exe>.')
+        }
+        return @{ Exe = $exe.FullName; Dir = $dir }
+    }
+    return @{ Exe = $item.FullName; Dir = $item.Directory.FullName }
+}
+
+function Test-DirectoryWritable([string] $Dir) {
+    try {
+        $probe = Join-Path $Dir ('.fragile-write-test-' + [guid]::NewGuid().ToString('N'))
+        [System.IO.File]::WriteAllText($probe, '')
+        Remove-Item -LiteralPath $probe -Force
+        return $true
+    } catch {
+        return $false
+    }
+}
+
 # $PSScriptRoot is empty inside param() defaults on Windows PowerShell 5.1,
 # so the repo-relative default paths are resolved here in the script body.
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -77,12 +158,49 @@ if (-not $GodotSource) { $GodotSource = Join-Path $repoRoot '.deps\godot-4.7-sta
 if (-not $NuGetFeed) { $NuGetFeed = Join-Path $repoRoot '.deps\nupkgs' }
 if (-not $ApiOutputDir) { $ApiOutputDir = Join-Path $repoRoot '.deps\godot-api-output' }
 
+# --- Resolve the editor: one parameter, directory or executable -------------
+$editorWasDefault = $false
+if (-not $EditorPath) {
+    $editorWasDefault = $true
+    $portableEditor = Join-Path $repoRoot '.deps\godot-4.7-fragile'
+    if (Test-Path -LiteralPath $portableEditor) {
+        $EditorPath = $portableEditor
+    } else {
+        $EditorPath = 'C:\Program Files\Godot'
+    }
+}
+$editor = Resolve-GodotEditor $EditorPath
+$GodotExe = $editor.Exe
+$editorDir = $editor.Dir
+
+# Install next to the chosen editor by default: editor-mode runs always load
+# their bindings from <exe dir>/GodotSharp/Api. A read-only install (stock
+# "C:\Program Files\Godot" without elevation) is skipped with a hint instead of
+# failing, so a plain run stays useful.
+$installRoot = ''
+if (-not $SkipApiInstall) {
+    if ($InstallApiTo) {
+        $installRoot = ConvertTo-CleanPath $InstallApiTo
+    } elseif (Test-DirectoryWritable $editorDir) {
+        $installRoot = $editorDir
+    }
+}
+
 Write-Host '== fragile .NET bindings pipeline =='
 Write-Host ('repo:        ' + $repoRoot)
 Write-Host ('godot src:   ' + $GodotSource)
-Write-Host ('godot exe:   ' + $GodotExe)
+Write-Host ('editor:      ' + $GodotExe)
+Write-Host ('editor dir:  ' + $editorDir)
+if ($SkipApiInstall) {
+    Write-Host 'api install: skipped (-SkipApiInstall)'
+} elseif ($installRoot) {
+    Write-Host ('api install: ' + $installRoot)
+} else {
+    Write-Host 'api install: skipped (editor dir is not writable; pass -InstallApiTo <dir>)'
+}
 Write-Host ('version tag: ' + $BindingsVersion)
 Write-Host ('nuget feed:  ' + $NuGetFeed)
+if ($editorWasDefault) { Write-Host ('note: -EditorPath not given; using ' + $GodotExe) }
 
 # --- 1. Preflight -----------------------------------------------------------
 $versionPy = Join-Path $GodotSource 'version.py'
@@ -137,34 +255,71 @@ if ($vpy -notmatch '(?m)^status = ".*"$') {
 }
 $vpyPatched = [regex]::Replace($vpy, '(?m)^status = ".*"$', $statusLine)
 Set-Content -LiteralPath $versionPy -Value $vpyPatched -Encoding utf8 -NoNewline
-Write-Host ('[1/3] version.py status -> ' + $statusLine)
+Write-Host ('[1/4] version.py status -> ' + $statusLine)
 
 # --- 3. Generate the C# glue (hidden option; requires --editor) -------------
 if (-not $SkipGlue) {
     $glueDir = Join-Path $GodotSource 'modules\mono\glue'
-    Write-Host ('[2/3] generating mono glue into ' + $glueDir + ' (this takes a few minutes) ...')
-    $env:APPDATA = Join-Path $repoRoot '.godot-appdata'   # sandbox-safe user:// redirect
+    Write-Host ('[2/4] generating mono glue into ' + $glueDir + ' (this takes a few minutes) ...')
     $runStart = Get-Date
+    # The editor writes user data under %APPDATA%\Godot and its help-doc cache
+    # under %LOCALAPPDATA%\Godot (platform/windows/os_windows.cpp get_cache_path).
+    # The sandbox allows neither, and the resulting "Cannot create file" /
+    # "Cannot save editor help cache" errors are not glue failures - redirect
+    # both into the repo for the duration of the engine call.
+    $prevAppData = $env:APPDATA
+    $prevLocalAppData = $env:LOCALAPPDATA
+    $env:APPDATA = Join-Path $repoRoot '.godot-appdata'
+    $env:LOCALAPPDATA = Join-Path (Join-Path $repoRoot '.godot-appdata') 'Local'
     $ErrorActionPreference = 'Continue'                  # native stderr must not stop us
-    $out = & $GodotExe --headless --editor --path $projectDir --generate-mono-glue $glueDir 2>&1 | Out-String
-    $ErrorActionPreference = 'Stop'
+    try {
+        $glueText = (& $GodotExe --headless --editor --path $projectDir --generate-mono-glue $glueDir 2>&1 | Out-String)
+        $glueExit = $LASTEXITCODE
+    } finally {
+        $env:APPDATA = $prevAppData
+        $env:LOCALAPPDATA = $prevLocalAppData
+        $ErrorActionPreference = 'Stop'
+    }
     $glueLog = Join-Path $repoRoot '.deps\generate-mono-glue.log'
     New-Item -ItemType Directory -Force -Path (Split-Path $glueLog) | Out-Null
-    Set-Content -LiteralPath $glueLog -Value $out -Encoding utf8
-    Write-Host ('    engine exit code: ' + $LASTEXITCODE + '; log: ' + $glueLog)
+    Set-Content -LiteralPath $glueLog -Value $glueText -Encoding utf8
     $probe = Join-Path $glueDir 'GodotSharp\GodotSharp\Generated\GodotObjects\FWorld.cs'
     if (-not (Test-Path -LiteralPath $probe)) {
-        throw 'Glue generation did not produce "' + $probe + '" - the fragile classes were not registered (check extension_list.cfg and the log).'
+        throw 'Glue generation did not produce "' + $probe + '" - the fragile classes were not registered (check extension_list.cfg and the log ' + $glueLog + ').'
     }
     $probeItem = Get-Item -LiteralPath $probe
     if ($probeItem.LastWriteTime -lt $runStart) {
         # A stale FWorld.cs from an earlier run would hide a core-only
         # generation; the stale wrappers would then ship old method hashes.
-        throw 'Glue generation did not regenerate FWorld.cs (file is stale from ' + $probeItem.LastWriteTime + '). The fragile classes were not in ClassDB this run - check extension_list.cfg and .deps/generate-mono-glue.log.'
+        throw 'Glue generation did not regenerate FWorld.cs (file is stale from ' + $probeItem.LastWriteTime + '). The fragile classes were not in ClassDB this run - check extension_list.cfg and ' + $glueLog + '.'
+    }
+    if ($glueText -notmatch 'The Godot API sources were successfully generated') {
+        throw ('Glue generation ended before the API sources were fully exported (engine exit code ' + $glueExit + ') - see ' + $glueLog + '.')
+    }
+    # Native stderr arrives as NativeCommandError records inside the captured
+    # text; only real engine errors are fatal. The certificate-store line is
+    # sandbox noise that appears on every engine run (AGENTS.md).
+    $glueErrors = @($glueText -split "`r?`n" | Where-Object {
+        $_ -match '(^|:\s*)(SCRIPT ERROR|USER ERROR|ERROR):' -and
+        $_ -notmatch 'Failed to read the root certificate store'
+    })
+    if ($glueErrors.Count -gt 0) {
+        throw ('Glue generation reported ' + $glueErrors.Count + ' error line(s): ' + (($glueErrors | Select-Object -First 3) -join ' | ') + ' - see ' + $glueLog + '.')
+    }
+    if ($glueExit -eq 0) {
+        Write-Host ('    engine exit code: 0; log: ' + $glueLog)
+    } elseif ($glueExit -eq -1073741819 -or $glueExit -eq 3221225477) {
+        # 0xC0000005 is the engine's known teardown crash in this sandbox: the
+        # export marker, FWorld.cs freshness and the error scan above prove the
+        # glue was written completely before the process died.
+        Write-Verbose 'engine exited with 0xC0000005 at teardown (known sandbox artifact; glue verified complete).'
+        Write-Host ('    engine finished writing the glue; log: ' + $glueLog)
+    } else {
+        throw ('Glue generation failed with engine exit code ' + $glueExit + ' - see ' + $glueLog + '.')
     }
     Write-Host '    OK: FWorld.cs (and FInfo/FActor/FLevel/FGameMode) regenerated.'
 } else {
-    Write-Host '[2/3] skipped glue generation (-SkipGlue).'
+    Write-Host '[2/4] skipped glue generation (-SkipGlue).'
 }
 
 # --- Keep project/fragile.csproj on the canonical Sdk value ------------------
@@ -201,7 +356,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # --- 4. Build and push the NuGet packages -----------------------------------
-Write-Host '[3/3] building GodotSharp packages (build_bindings_assemblies.py) ...'
+Write-Host '[3/4] building GodotSharp packages (build_bindings_assemblies.py) ...'
 New-Item -ItemType Directory -Force -Path $NuGetFeed | Out-Null
 New-Item -ItemType Directory -Force -Path $ApiOutputDir | Out-Null
 $buildScript = Join-Path $PSScriptRoot 'build_bindings_assemblies.py'
@@ -241,22 +396,37 @@ if ($LASTEXITCODE -ne 0) {
     throw 'alias_sdk_package.py failed (exit ' + $LASTEXITCODE + ')'
 }
 
-# --- 5. Optionally install the API assemblies into an editor directory -----
+# --- 5. Install the API assemblies next to the editor -----------------------
 # The editor ALWAYS loads its runtime bindings from <exe dir>/GodotSharp/Api
 # (modules/mono/godotsharp_dirs.cpp, TOOLS_ENABLED branch) - there is no
 # override. Editor-mode runs only see the fragile types if that folder holds
-# our assemblies, so point -InstallApiTo at a portable editor directory (or,
-# with elevation, the installed one). Exported games are unaffected: they use
-# the GodotSharp.dll published from the NuGet package.
-if ($InstallApiTo) {
+# our assemblies. Exported games are unaffected: they use the GodotSharp.dll
+# published from the NuGet package.
+if ($SkipApiInstall) {
+    Write-Host '[4/4] API install skipped (-SkipApiInstall).'
+} elseif (-not $installRoot) {
+    Write-Host '[4/4] API install skipped (editor directory is not writable; pass -InstallApiTo <dir>).'
+} else {
+    # -InstallApiTo may name the editor exe instead of its directory.
+    if (Test-Path -LiteralPath $installRoot -PathType Leaf) {
+        $installRoot = Split-Path -Parent $installRoot
+    }
+    $installRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($installRoot)
     foreach ($cfg in 'Debug', 'Release') {
         $src = Join-Path (Join-Path $ApiOutputDir 'GodotSharp\Api') $cfg
-        $dst = Join-Path (Join-Path $InstallApiTo 'GodotSharp\Api') $cfg
         if (-not (Test-Path -LiteralPath $src)) {
             throw 'missing built Api output: ' + $src
         }
-        New-Item -ItemType Directory -Force -Path $dst | Out-Null
-        Copy-Item -Path (Join-Path $src '*') -Destination $dst -Force
+        $dst = Join-Path (Join-Path $installRoot 'GodotSharp\Api') $cfg
+        try {
+            New-Item -ItemType Directory -Force -Path $dst -ErrorAction Stop | Out-Null
+            Copy-Item -Path (Join-Path $src '*') -Destination $dst -Force -ErrorAction Stop
+        } catch {
+            throw ('could not install the API into ' + $dst + ': ' + $_.Exception.Message + ' - if the editor lives under "C:\Program Files", run elevated or point -EditorPath at a portable editor directory.')
+        }
+        if (-not (Test-Path -LiteralPath (Join-Path $dst 'GodotSharp.dll'))) {
+            throw ('the API copy into ' + $dst + ' did not produce GodotSharp.dll.')
+        }
         Write-Host ('[4/4] installed Api/' + $cfg + ' -> ' + $dst)
     }
 }
@@ -268,3 +438,8 @@ Get-ChildItem -LiteralPath $NuGetFeed -Filter '*.nupkg' | ForEach-Object { Write
 Write-Host ''
 Write-Host ('Next: dotnet build "' + (Join-Path $projectDir 'fragile.csproj') + '"')
 Write-Host ('      (project/fragile.csproj uses Sdk Godot.NET.Sdk/' + $engineVersion + ', resolved to the custom bindings via the alias package)')
+if ($installRoot) {
+    $guiExe = $GodotExe -replace '_console\.exe$', '.exe'
+    if (-not (Test-Path -LiteralPath $guiExe)) { $guiExe = $GodotExe }
+    Write-Host ('      Launch the editor for C# work: ' + $guiExe)
+}

@@ -64,8 +64,11 @@ The pipeline mirrors the limboai packages (`Godot.NET.Sdk/4.7.2-limboai-*.gha`):
    - runs `scripts/alias_sdk_package.py`, which repacks the custom
      `Godot.NET.Sdk` as version `4.7.0` and evicts the `Godot.*` packages
      from the NuGet caches (see the csproj note below);
-   - `-InstallApiTo <editor-dir>` copies the built `GodotSharp/Api/{Debug,Release}`
-     into an editor directory — **required for editor-mode runs**, see below.
+   - `-EditorPath <editor dir or exe>` selects the editor used for glue
+     generation; its directory is also the default `-InstallApiTo` target
+     (`-GodotExe` remains an alias). The built `GodotSharp/Api/{Debug,Release}`
+     is copied there — **required for editor-mode runs** — unless
+     `-SkipApiInstall` is passed; see below.
 2. `nuget.config` (repo root) feeds `.deps/nupkgs` and maps the four `Godot.*`
    package ids to that feed only. `project/fragile.csproj` intentionally uses
    `Sdk="Godot.NET.Sdk/4.7.0"` — the exact value the stock editor insists on
@@ -218,6 +221,13 @@ Old URLs 404. Current locations:
   artifact, not a bug. Workaround for headless tests without elevation:
   redirect `APPDATA` at the process level
   (`$env:APPDATA = <workspace>\.godot-appdata` before launching the engine).
+  Also redirect `LOCALAPPDATA` (`<workspace>\.godot-appdata\Local`): the
+  editor's help-doc cache goes to `%LOCALAPPDATA%\Godot`
+  (`platform/windows/os_windows.cpp` `get_cache_path`), and with only
+  `APPDATA` redirected the engine logs
+  `ERROR: Cannot create file ... editor_doc_cache` /
+  `ERROR: Cannot save editor help cache` even though glue generation
+  succeeded. Not a glue failure — an environment redirect issue.
 - **`ERROR: Failed to read the root certificate store`** is sandbox noise and
   appears on every run; ignore it. `.NET: Failed to load project assembly`
   (with `TypeLoadException: Could not load type 'Godot.FWorld'` on stderr) is

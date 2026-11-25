@@ -53,6 +53,12 @@
   the opt-out when you only want the native library rebuilt. (PowerShell
   rejects a parameter given twice, so -Bindings:$false cannot override it.)
 
+.PARAMETER GodotExe
+  Godot 4.7 .NET editor used for the import check and forwarded to the .NET
+  bindings pipeline. Defaults to the portable C# editor under
+  .deps/godot-4.7-fragile when present, otherwise to the stock installed
+  editor. Pass a different editor here to build/import against it.
+
 .PARAMETER InstallApiTo
   With -Bindings: editor directory whose GodotSharp/Api gets the freshly built
   assemblies. Editor-mode runs load bindings from <exe dir>/GodotSharp/Api only,
@@ -72,7 +78,7 @@ param(
     [ValidateSet('auto', 'on', 'off')]
     [string] $DebugInfo = 'auto',
 
-    [string] $GodotExe = 'C:\Program Files\Godot\Godot_v4.7-stable_mono_win64_console.exe',
+    [string] $GodotExe = '',
 
     [switch] $SkipImport,
     [switch] $AllowRunningEditor,
@@ -92,6 +98,19 @@ $gdextPath  = Join-Path $binDir 'fragile.gdextension'
 $logDir     = Join-Path $repoRoot '.deps'
 
 $buildStart = Get-Date
+
+# Prefer the portable editor that carries the custom GodotSharp/Api (built by
+# scripts/build_dotnet_bindings.ps1). Editor-mode runs load their bindings from
+# <exe dir>/GodotSharp/Api, so the stock Program Files editor would wrap
+# fragile classes at their engine base type.
+if (-not $GodotExe) {
+    $portableEditorExe = Join-Path $repoRoot '.deps\godot-4.7-fragile\Godot_v4.7-stable_mono_win64_console.exe'
+    if (Test-Path -LiteralPath $portableEditorExe) {
+        $GodotExe = $portableEditorExe
+    } else {
+        $GodotExe = 'C:\Program Files\Godot\Godot_v4.7-stable_mono_win64_console.exe'
+    }
+}
 
 function Write-Stage([string] $Message) { Write-Host ''; Write-Host ('== ' + $Message) -ForegroundColor Cyan }
 function Write-Ok([string] $Message)    { Write-Host ('   [ok]   ' + $Message) -ForegroundColor Green }
@@ -339,8 +358,19 @@ if (Test-Path -LiteralPath $extensionList) {
     Write-Note 'missing, but -SkipImport was passed; the engine will not see the extension until it exists.'
 } else {
     Write-Info 'running the one-time headless editor import (AGENTS.md pitfall #1) ...'
-    $env:APPDATA = Join-Path $repoRoot '.godot-appdata'   # sandbox-safe user:// redirect
-    $import = Invoke-Captured -FilePath $GodotExe -ArgumentList @('--headless', '--editor', '--quit-after', '300', '--path', $projectDir)
+    # The editor also writes its help-doc cache under %LOCALAPPDATA%\Godot, not
+    # just %APPDATA%\Godot; both must point inside the repo or the sandbox denies
+    # the writes ("Cannot create file" / "Cannot save editor help cache").
+    $prevAppData = $env:APPDATA
+    $prevLocalAppData = $env:LOCALAPPDATA
+    $env:APPDATA = Join-Path $repoRoot '.godot-appdata'
+    $env:LOCALAPPDATA = Join-Path (Join-Path $repoRoot '.godot-appdata') 'Local'
+    try {
+        $import = Invoke-Captured -FilePath $GodotExe -ArgumentList @('--headless', '--editor', '--quit-after', '300', '--path', $projectDir)
+    } finally {
+        $env:APPDATA = $prevAppData
+        $env:LOCALAPPDATA = $prevLocalAppData
+    }
     Set-Content -LiteralPath (Join-Path $logDir 'editor-import.log') -Value $import.Output -Encoding utf8
     if (-not (Test-Path -LiteralPath $extensionList)) {
         Fail ('the import did not create ' + $extensionList + ' - see ' + (Join-Path $logDir 'editor-import.log'))
@@ -351,8 +381,11 @@ if (Test-Path -LiteralPath $extensionList) {
 # --------------------------------------------------------------------------
 if ($Bindings -and -not $SkipBindings) {
     Write-Stage 'bonus: .NET bindings'
-    $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'build_dotnet_bindings.ps1'))
-    if ($InstallApiTo) { $psArgs += @('-InstallApiTo', $InstallApiTo) }
+    # Forward the same editor the build/import used, so glue generation and the
+    # API install cannot disagree about which engine they target. Without an
+    # explicit install target, leave the editor untouched (old behaviour).
+    $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'build_dotnet_bindings.ps1'), '-GodotExe', $GodotExe)
+    if ($InstallApiTo) { $psArgs += @('-InstallApiTo', $InstallApiTo) } else { $psArgs += '-SkipApiInstall' }
     $bind = Invoke-Captured -FilePath 'powershell.exe' -ArgumentList $psArgs
     $bindLog = Join-Path $logDir 'build-dotnet-bindings.log'
     Set-Content -LiteralPath $bindLog -Value $bind.Output -Encoding utf8

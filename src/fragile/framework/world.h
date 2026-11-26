@@ -97,6 +97,10 @@ public:
 	 *         scene tree.
 	 */
 	static FWorld* get_current_world();
+
+	[[nodiscard]] FCharacter* get_player_character() const;
+
+	[[nodiscard]] FController* get_player_controller() const;
 };
 
 }	 // namespace fragile::framework

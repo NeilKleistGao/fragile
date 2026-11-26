@@ -1,5 +1,7 @@
 #include "level.h"
 
+#include "character.h"
+#include "controller.h"
 #include "fragile/utils/editor.h"
 #include "fragile/utils/register_helper.h"
 #include "fragile/utils/type_check.h"
@@ -37,7 +39,29 @@ void FLevel::spawn_game_mode() {
 }
 
 void FLevel::spawn_player_with_controller() {
-	// TODO:
+	const auto& character_prefab = game_mode->get_character_prefab();
+	if (character_prefab.is_null()) {
+		return;
+	}
+
+	if (auto* character = cast_to<FCharacter>(character_prefab->instantiate()); character != nullptr) {
+		player = character;
+		add_child(player);
+	}
+
+	const auto& controller_prefab = game_mode->get_controller_prefab();
+	if (controller_prefab.is_null()) {
+		return;
+	}
+
+	if (auto* ctrl = cast_to<FController>(controller_prefab->instantiate()); ctrl != nullptr) {
+		controller = ctrl;
+		add_child(controller);
+	}
+
+	if (player != nullptr && controller != nullptr) {
+		controller->control(player);
+	}
 }
 
 void FLevel::add_actor(FActor* actor) {
@@ -79,6 +103,14 @@ void FLevel::_ready() {
 	if (game_mode != nullptr) {
 		spawn_player_with_controller();
 	}
+}
+
+FCharacter* FLevel::get_player_character() const {
+	return player;
+}
+
+FController* FLevel::get_player_controller() const {
+	return controller;
 }
 
 }	 // namespace fragile::framework

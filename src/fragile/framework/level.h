@@ -11,6 +11,8 @@
 namespace fragile::framework {
 
 class FGameMode;
+class FCharacter;
+class FController;
 
 /**
  * @brief A container of actors.
@@ -35,6 +37,10 @@ private:
 	 */
 	FGameMode* game_mode{ nullptr };
 
+	FCharacter* player{ nullptr };
+
+	FController* controller{ nullptr };
+
 	void spawn_game_mode();
 
 	void spawn_player_with_controller();
@@ -57,6 +63,10 @@ public:
 	[[nodiscard]] Ref<PackedScene> get_override_game_mode() const;
 
 	void _ready() override;
+
+	[[nodiscard]] FCharacter* get_player_character() const;
+
+	[[nodiscard]] FController* get_player_controller() const;
 };
 
 }	 // namespace fragile::framework

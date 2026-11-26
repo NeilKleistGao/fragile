@@ -1,5 +1,7 @@
 #include "world.h"
 
+#include "character.h"
+#include "controller.h"
 #include "fragile/utils/editor.h"
 #include "fragile/utils/register_helper.h"
 #include "fragile/utils/type_check.h"
@@ -18,6 +20,8 @@ void FWorld::_bind_methods() {
 	ADD_PREFAB_PROPERTY(FWorld, game_mode_prefab);
 	ADD_PREFAB_PROPERTY(FWorld, default_level_prefab);
 	ADD_STATIC_METHOD(FWorld, get_current_world);
+	ADD_METHOD(FWorld, get_player_character);
+	ADD_METHOD(FWorld, get_player_controller);
 }
 
 void FWorld::open_level(const StringName& level_name) {
@@ -113,6 +117,14 @@ void FWorld::_exit_tree() {
 
 FWorld* FWorld::get_current_world() {
 	return instance;
+}
+
+FCharacter* FWorld::get_player_character() const {
+	return (current_level == nullptr) ? nullptr : current_level->get_player_character();
+}
+
+FController* FWorld::get_player_controller() const {
+	return (current_level == nullptr) ? nullptr : current_level->get_player_controller();
 }
 
 }	 // namespace fragile::framework

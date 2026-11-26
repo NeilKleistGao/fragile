@@ -45,6 +45,9 @@ protected:
 	static void _bind_methods();
 
 public:
+	// Clears the pawn's back-reference when this controller is torn down.
+	void _notification(int p_what);
+
 	/**
 	 * @brief Makes this controller possess and drive @p pawn.
 	 *

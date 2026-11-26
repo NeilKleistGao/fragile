@@ -83,9 +83,13 @@ private:
 	/**
 	 * @brief Spawns the player character and controller and binds them.
 	 *
-	 * Both prefabs are read from game_mode, which must be set. Adds each
-	 * spawned node as a child of this level and makes the controller take
-	 * control of the character when both were created.
+	 * Both prefabs are read from game_mode, whose state is not checked here:
+	 * the caller must ensure game_mode is not @c nullptr. A prefab that is
+	 * unset or cannot be instantiated simply spawns nothing for that side,
+	 * without printing an error.
+	 *
+	 * Each spawned node is added as a child of this level; the controller
+	 * takes control of the character once both exist.
 	 */
 	void spawn_player_with_controller();
 
@@ -96,10 +100,11 @@ public:
 	/**
 	 * @brief Registers @p actor and adds it as a child node.
 	 *
-	 * Nothing is added when an actor with the same name is already
-	 * registered; an error is printed instead.
+	 * Does nothing when @p actor is @c nullptr. Nothing is added when an actor
+	 * with the same name is already registered either; an error is printed in
+	 * that case.
 	 *
-	 * @param actor Actor to attach to this level.
+	 * @param actor Actor to attach to this level; @c nullptr is ignored.
 	 */
 	void add_actor(FActor* actor);
 
@@ -123,6 +128,9 @@ public:
 	[[nodiscard]] Ref<PackedScene> get_override_game_mode() const;
 
 	void _ready() override;
+
+	// Clears the pointers to the spawned nodes when the level is torn down.
+	void _notification(int p_what);
 
 	/**
 	 * @brief Returns the character spawned for the local player.

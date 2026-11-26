@@ -124,6 +124,9 @@ public:
 
 	void _exit_tree() override;
 
+	// Clears the level pointer and the current-world slot when this world is torn down.
+	void _notification(int p_what);
+
 	/**
 	 * @brief Returns the one world that currently owns the scene tree.
 	 *

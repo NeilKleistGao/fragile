@@ -17,7 +17,7 @@ void FLevel::_bind_methods() {
 }
 
 void FLevel::spawn_game_mode() {
-	auto& game_mode_prefab = override_game_mode;
+	auto game_mode_prefab = override_game_mode;
 	if (game_mode_prefab.is_null()) {
 		const auto* world = FWorld::get_current_world();
 		if (world == nullptr) {
@@ -55,6 +55,10 @@ void FLevel::spawn_player_with_controller() {
 }
 
 void FLevel::add_actor(FActor* actor) {
+	if (actor == nullptr) {
+		return;
+	}
+
 	for (const auto& v : actors) {
 		if (const auto* act = cast_to<FActor>(v.get_validated_object()); act != nullptr && act->get_name() == actor->get_name()) {
 			print_error(String("Duplicate actor name: ") + actor->get_name());
@@ -77,7 +81,7 @@ void FLevel::set_override_game_mode(const Ref<PackedScene>& prefab) {
 		return;
 	}
 
-	print_error("cannot set game_mode_prefab: the scene root does not derive from FGameMode.");
+	print_error("cannot set override_game_mode: the scene root does not derive from FGameMode.");
 }
 
 Ref<PackedScene> FLevel::get_override_game_mode() const {
@@ -93,6 +97,18 @@ void FLevel::_ready() {
 	if (game_mode != nullptr) {
 		spawn_player_with_controller();
 	}
+}
+
+void FLevel::_notification(int p_what) {
+	if (p_what != NOTIFICATION_PREDELETE) {
+		return;
+	}
+
+	// The scene tree frees the children; only drop the pointers so nothing can
+	// reach a node that is already gone.
+	game_mode = nullptr;
+	player = nullptr;
+	controller = nullptr;
 }
 
 FCharacter* FLevel::get_player_character() const {

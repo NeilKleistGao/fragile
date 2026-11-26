@@ -23,12 +23,25 @@ void FController::control(FPawn* pawn) {
 }
 
 void FController::remove_control() {
-	if (controlled_pawn != nullptr) {
-		ERR_FAIL_COND_MSG(controlled_pawn->controller != this, "Inconsistent control relation.");
+	if (controlled_pawn == nullptr) {
+		return;
+	}
+
+	// The pawn may already have cleared its side of the relation while it is
+	// being torn down; only clear it when it still points here.
+	if (controlled_pawn->controller == this) {
 		controlled_pawn->controller = nullptr;
 	}
 
 	controlled_pawn = nullptr;
+}
+
+void FController::_notification(int p_what) {
+	if (p_what != NOTIFICATION_PREDELETE) {
+		return;
+	}
+
+	remove_control();
 }
 
 }	 // namespace fragile::framework

@@ -32,6 +32,7 @@ void FWorld::open_level(const StringName& level_name) {
 			if (current_level != nullptr) {
 				remove_child(current_level);
 				current_level->queue_free();
+				current_level = nullptr;
 			}
 
 			current_level = level;
@@ -88,6 +89,12 @@ void FWorld::_ready() {
 
 	FRAGILE_RUNTIME_API;
 
+	// A child's _ready() runs before this one, so the default level must not
+	// replace a level that was already opened from there.
+	if (current_level != nullptr) {
+		return;
+	}
+
 	if (auto* level = utils::instantiate<FLevel>(default_level_prefab); level != nullptr) {
 		current_level = level;
 		add_child(current_level);
@@ -111,7 +118,22 @@ void FWorld::_exit_tree() {
 
 	FRAGILE_RUNTIME_API;
 
-	instance = nullptr;
+	if (instance == this) {
+		instance = nullptr;
+	}
+}
+
+void FWorld::_notification(int p_what) {
+	if (p_what != NOTIFICATION_PREDELETE) {
+		return;
+	}
+
+	// The scene tree frees the level; only drop the pointer so nothing can
+	// reach a node that is already gone.
+	current_level = nullptr;
+	if (instance == this) {
+		instance = nullptr;
+	}
 }
 
 FWorld* FWorld::get_current_world() {

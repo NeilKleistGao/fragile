@@ -158,6 +158,10 @@ jobs:
           if ($listed -notmatch 'fragile\.gdextension') {
             throw "fragile.gdextension missing from $cfg"
           }
+          # GitHub's pwsh wrapper ends the step with `exit $LASTEXITCODE`, and
+          # $LASTEXITCODE still holds the engine's shutdown crash code above;
+          # without this the step fails even though every check passed.
+          exit 0
 
       - name: Headless smoke run
         if: ${{ matrix.smoke }}
@@ -170,3 +174,7 @@ jobs:
           foreach ($pat in @("Cannot get class", "Can't open dynamic library", "placeholder")) {
             if ($out -match $pat) { throw "smoke test failed: $pat" }
           }
+          # GitHub's pwsh wrapper ends the step with `exit $LASTEXITCODE`, and
+          # $LASTEXITCODE still holds the engine's shutdown crash code above;
+          # without this the step fails even though every check passed.
+          exit 0

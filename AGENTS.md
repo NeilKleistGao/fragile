@@ -299,8 +299,10 @@ with a headless engine smoke test on the Windows debug leg.
   `$ErrorActionPreference = 'Stop'` (any native stderr line then aborts the
   step) and Godot 4.7 can crash in its own shutdown path (`0xC0000005`) right
   after a first import completed. Both `pwsh` steps therefore start with
-  `$ErrorActionPreference = 'Continue'`, print the captured output, and judge
-  the artifact — never `$LASTEXITCODE`.
+  `$ErrorActionPreference = 'Continue'`, print the captured output, judge the
+  artifact — and end with an explicit `exit 0`: the wrapper closes the step
+  with `exit $LASTEXITCODE`, which still holds the crash code of the engine
+  call above, so without it a passing step still reports exit code 1.
 - CI downloads Godot from `godotengine/godot-builds` releases; the Windows
   console exe lives **inside** `Godot_v4.7-stable_win64.exe.zip` (there is no
   separate console zip asset).

@@ -128,23 +128,45 @@ jobs:
           Invoke-WebRequest -Uri 'https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_win64.exe.zip' -OutFile godot.zip
           Expand-Archive godot.zip -DestinationPath godot
 
-      # AGENTS.md pitfall #1: the editor import must run first - it generates
+      # AGENTS.md pitfall #1: the import must run first - it generates
       # project/.godot/extension_list.cfg, without which the engine never loads
       # the extension and reports "Cannot get class 'Fragile'".
-      - name: Headless editor import
+      #
+      # Two deliberate choices:
+      #   - --import waits for the import to finish; --quit-after N counts
+      #     iterations, so a slow runner can quit mid-import.
+      #   - the engine exit code is NOT the gate: GitHub's pwsh wrapper sets
+      #     $ErrorActionPreference = 'Stop' (any native stderr line aborts the
+      #     step), and Godot 4.7 can crash in its own shutdown path (0xC0000005)
+      #     right after a first import finished. The generated file is the
+      #     postcondition that actually matters.
+      - name: Headless asset import
         if: ${{ matrix.smoke }}
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Continue'
           $godot = ".\godot\Godot_v4.7-stable_win64_console.exe"
-          & $godot --headless --editor --quit-after 60 --path project
+          $out = & $godot --headless --import --path project 2>&1 | Out-String
+          Write-Host $out
+          Write-Host "godot exit code: $LASTEXITCODE (advisory, see the comment above)"
+          $cfg = "project/.godot/extension_list.cfg"
+          if (-not (Test-Path $cfg)) {
+            throw "headless import did not generate $cfg"
+          }
+          $listed = Get-Content $cfg -Raw
+          Write-Host "extension_list.cfg: $listed"
+          if ($listed -notmatch 'fragile\.gdextension') {
+            throw "fragile.gdextension missing from $cfg"
+          }
 
       - name: Headless smoke run
         if: ${{ matrix.smoke }}
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Continue'
           $godot = ".\godot\Godot_v4.7-stable_win64_console.exe"
           $out = & $godot --headless --path project --quit-after 60 2>&1 | Out-String
           Write-Host $out
           foreach ($pat in @("Cannot get class", "Can't open dynamic library", "placeholder")) {
-            if ($out -match $pat) { Write-Error "smoke test failed: $pat"; exit 1 }
+            if ($out -match $pat) { throw "smoke test failed: $pat" }
           }

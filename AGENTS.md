@@ -266,7 +266,9 @@ with a headless engine smoke test on the Windows debug leg.
 - **Language standard**: the repo ships `godot-cpp`'s official `.clang-format`
   (copy with local tweaks `LineEnding: LF` and `AccessModifierOffset: -2`, the
   latter keeping access modifiers flush left at column 0 while members stay
-  indented). CI pins `clang-format==22.1.3` (PyPI)
+  indented; plus `BreakBeforeBraces: Custom` with `BraceWrapping.BeforeElse:
+  true` so `else` starts its own line instead of `} else {`). CI pins
+  `clang-format==22.1.3` (PyPI)
   to match the local VS 2026 LLVM toolchain exactly — unpinned clang-format
   versions reformat differently and would desync local runs from CI. Check
   locally with
@@ -287,9 +289,18 @@ with a headless engine smoke test on the Windows debug leg.
   non-virtual, so MSVC accepted an `override` GCC rightly rejected). CI is the
   reference: `_notification` is dispatched by the `GDCLASS` macro, not by
   virtual dispatch — never mark it `override`.
-- The smoke-test legs replicate AGENTS.md pitfall #1 on purpose (editor import
+- The smoke-test legs replicate AGENTS.md pitfall #1 on purpose (asset import
   first, then the run) and grep the failure signatures from the checklist —
-  edit them together.
+  edit them together. The import step runs `godot --headless --import` (it
+  waits for the import to finish; `--quit-after N` counts iterations, so a
+  slow runner can quit mid-import) and gates on
+  `project/.godot/extension_list.cfg` listing `fragile.gdextension`, **not**
+  on the engine's exit code: GitHub's `pwsh` wrapper sets
+  `$ErrorActionPreference = 'Stop'` (any native stderr line then aborts the
+  step) and Godot 4.7 can crash in its own shutdown path (`0xC0000005`) right
+  after a first import completed. Both `pwsh` steps therefore start with
+  `$ErrorActionPreference = 'Continue'`, print the captured output, and judge
+  the artifact — never `$LASTEXITCODE`.
 - CI downloads Godot from `godotengine/godot-builds` releases; the Windows
   console exe lives **inside** `Godot_v4.7-stable_win64.exe.zip` (there is no
   separate console zip asset).
@@ -300,9 +311,11 @@ with a headless engine smoke test on the Windows debug leg.
    `project/addons/fragile/bin/` with the
    exact name referenced by `fragile.gdextension`.
 2. `dumpbin /exports <dll>` lists `fragile_library_init`.
-3. Headless editor import succeeds ("validating GDExtension" in output) and
-   `project/.godot/extension_list.cfg` lists
-   `res://addons/fragile/bin/fragile.gdextension`.
+3. Headless asset import generates `project/.godot/extension_list.cfg` listing
+   `res://addons/fragile/bin/fragile.gdextension`. The engine's exit code is
+   **not** a usable signal: after a first import Godot 4.7 may crash in its
+   shutdown path (`0xC0000005`) even though the import finished. Check the
+   file; load failures are caught by step 4.
 4. Headless run exits 0 and loads `main.tscn` whose root node is a `FWorld`
    instance — this exercises class registration end to end.
 5. After C#-relevant changes: `scripts/build_dotnet_bindings.ps1` succeeds,
@@ -335,6 +348,7 @@ Failure signatures:
 | `TypeLoadException: Could not load type 'Godot.FWorld'` / `.NET: Failed to load project assembly` | Editor runs stock `GodotSharp/Api` while the project assembly needs the custom bindings — use the `-InstallApiTo` editor or copy `.deps/godot-api-output/GodotSharp/Api/*` into `<editor>/GodotSharp/Api/` |
 | `MissingMethodException: Method not found: '...Godot.FWorld.Set...'` | The editor's installed `GodotSharp/Api` predates the last bindings build — re-run `build_dotnet_bindings.ps1` with `-InstallApiTo <editor>` (or copy `.deps/godot-api-output/GodotSharp/Api/*` into `<editor>/GodotSharp/Api/`) |
 | C# probe scene crashes at engine exit after writing `PASS` | Sandbox shutdown noise (0xC00000xx); the result file is authoritative |
+| `Process completed with exit code 1` on a headless import/smoke step that otherwise worked | Native stderr tripped the `pwsh` step's `$ErrorActionPreference = 'Stop'`, or Godot 4.7 crashed in its shutdown path (`0xC0000005`) after the import — check `extension_list.cfg` and the greps, not the exit code |
 
 ## Conventions
 

@@ -27,34 +27,24 @@ void FLevel::spawn_game_mode() {
 		game_mode_prefab = world->get_game_mode_prefab();
 	}
 
-	if (game_mode_prefab.is_null()) {
-		print_error(String{ "No game mode specified." });
-		return;
-	}
-
-	if (auto* game_mode = cast_to<FGameMode>(game_mode_prefab->instantiate()); game_mode != nullptr) {
+	if (auto* game_mode = utils::instantiate<FGameMode>(game_mode_prefab); game_mode != nullptr) {
 		this->game_mode = game_mode;
 		add_child(game_mode);
+	}
+	else {
+		print_error(String{ "No game mode specified." });
 	}
 }
 
 void FLevel::spawn_player_with_controller() {
 	const auto& character_prefab = game_mode->get_character_prefab();
-	if (character_prefab.is_null()) {
-		return;
-	}
-
-	if (auto* character = cast_to<FCharacter>(character_prefab->instantiate()); character != nullptr) {
+	if (auto* character = utils::instantiate<FCharacter>(character_prefab); character != nullptr) {
 		player = character;
 		add_child(player);
 	}
 
 	const auto& controller_prefab = game_mode->get_controller_prefab();
-	if (controller_prefab.is_null()) {
-		return;
-	}
-
-	if (auto* ctrl = cast_to<FController>(controller_prefab->instantiate()); ctrl != nullptr) {
+	if (auto* ctrl = utils::instantiate<FController>(controller_prefab); ctrl != nullptr) {
 		controller = ctrl;
 		add_child(controller);
 	}

@@ -87,11 +87,9 @@ void FWorld::_ready() {
 
 	FRAGILE_RUNTIME_API;
 
-	if (default_level_prefab != nullptr) {
-		if (auto* level = cast_to<FLevel>(default_level_prefab->instantiate()); level != nullptr) {
-			current_level = level;
-			add_child(current_level);
-		}
+	if (auto* level = utils::instantiate<FLevel>(default_level_prefab); level != nullptr) {
+		current_level = level;
+		add_child(current_level);
 	}
 	else {
 		print_error("No default level specified.");

@@ -2,8 +2,13 @@
 #ifndef __FRAGILE_TYPE_CHECK_H__
 #define __FRAGILE_TYPE_CHECK_H__
 
-#include "godot_cpp/classes/packed_scene.hpp"
-#include "godot_cpp/classes/ref.hpp"
+#include "../global.h"
+#include "godot_cpp/classes/node.hpp"
+
+#include <godot_cpp/classes/object.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/ref.hpp>
+#include <type_traits>
 
 namespace fragile::utils {
 
@@ -19,7 +24,26 @@ namespace fragile::utils {
  * @param class_name Class the root node must be or derive from.
  * @return @c true when the scene's root derives from @p class_name.
  */
-bool is_scene_root_derived_from(const godot::Ref<godot::PackedScene>& scene, const godot::StringName& class_name);
+bool is_scene_root_derived_from(const Ref<PackedScene>& scene, const StringName& class_name);
+
+template <typename T>
+T* instantiate(const Ref<PackedScene>& scene) {
+	if (scene.is_null()) {
+		return nullptr;
+	}
+
+	auto* obj = scene->instantiate();
+	if (obj == nullptr) {
+		return nullptr;
+	}
+
+	if (auto* ins = Object::cast_to<std::remove_const_t<T>>(obj); ins != nullptr) {
+		return ins;
+	}
+
+	obj->queue_free();
+	return nullptr;
+}
 
 }	 // namespace fragile::utils
 

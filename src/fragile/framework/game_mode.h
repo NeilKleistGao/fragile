@@ -10,26 +10,24 @@
 
 namespace fragile::framework {
 
-class FWorld;
-
 /**
  * @brief Base class for the rules that govern one game session.
  *
  * Mirrors Unreal Engine's AGameMode: it carries the game rules and the
- * global session state of an FWorld. Like every FInfo it is not part of
- * any level. FWorld::set_game_mode makes it the world's game mode and a
- * child node of that world; the world owns its game mode and frees it when
- * it is replaced or when the world itself is freed. Alternatively the
- * FWorld's @c game_mode_prefab property spawns it from a scene at ready.
- * A world starts out without a game mode and keeps it that way until one
- * is set explicitly.
+ * session state of one level. Like every FInfo it is a plain Node with no
+ * transform, but it is not free-floating: FLevel::spawn_game_mode makes it a
+ * child node of the level that loaded it, and the level owns it.
+ *
+ * A game mode describes the player a level spawns: character_prefab and
+ * controller_prefab are instantiated by FLevel at ready. The level chooses
+ * the game mode scene itself (FLevel::set_override_game_mode) or falls back
+ * to the current world's FWorld::get_game_mode_prefab().
  *
  * Never free a game mode from user code: its lifetime belongs to the
- * framework. The owning FWorld frees its game mode - when the game mode
- * is replaced, and always when the world itself is freed.
+ * framework. The owning FLevel frees it together with the level.
  *
- * FGameMode itself adds no rules and no state beyond FInfo. Derived
- * classes add the actual rules.
+ * FGameMode itself adds no rules beyond the player prefabs. Derived classes
+ * add the actual rules.
  */
 class FGameMode : public FInfo {
 	GDCLASS(FGameMode, FInfo)
@@ -38,8 +36,22 @@ protected:
 	static void _bind_methods();
 
 private:
+	/**
+	 * @brief Scene whose root derives from FCharacter, used to spawn the player.
+	 *
+	 * Assigned through the @c character_prefab property and validated by
+	 * set_character_prefab(). @c nullptr means the level spawns no player
+	 * character.
+	 */
 	Ref<PackedScene> character_prefab;
 
+	/**
+	 * @brief Scene whose root derives from FController, used to spawn the player controller.
+	 *
+	 * Assigned through the @c controller_prefab property and validated by
+	 * set_controller_prefab(). @c nullptr means the level spawns no player
+	 * controller.
+	 */
 	Ref<PackedScene> controller_prefab;
 
 public:

@@ -13,7 +13,9 @@ class FPawn;
  *
  * Mirrors Unreal Engine's AController: a non-physical actor responsible
  * for directing the actions of an FPawn instead of existing in the world
- * itself. Like every FInfo it is not part of any level.
+ * itself. Like every FInfo it is a plain Node with no transform and never
+ * appears in the level's spatial layout, even though the level it belongs to
+ * parents it to own its lifetime.
  *
  * FController is registered as abstract and cannot be instantiated
  * directly - use FPlayerController or another derived class. Possession
@@ -31,6 +33,12 @@ class FController : public FInfo {
 	GDCLASS(FController, FInfo)
 
 private:
+	/**
+	 * @brief Pawn this controller possesses; @c nullptr when none is controlled.
+	 *
+	 * Set by control() and cleared by remove_control(). The pawn is not a
+	 * child node of the controller (see the class note above).
+	 */
 	FPawn* controlled_pawn{ nullptr };
 
 protected:

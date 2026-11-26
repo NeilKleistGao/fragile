@@ -2,6 +2,8 @@
 #ifndef __FRAGILE_REGISTER_HELPER_H__
 #define __FRAGILE_REGISTER_HELPER_H__
 
+#include <godot_cpp/core/class_db.hpp>
+
 #define CONCAT(__X__, __Y__) __X__##__Y__
 #define STR(__X__) #__X__
 

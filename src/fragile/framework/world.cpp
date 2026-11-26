@@ -5,6 +5,7 @@
 #include "fragile/utils/editor.h"
 #include "fragile/utils/register_helper.h"
 #include "fragile/utils/type_check.h"
+#include "level.h"
 
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/core/class_db.hpp>

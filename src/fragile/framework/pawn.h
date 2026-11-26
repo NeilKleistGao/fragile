@@ -29,6 +29,12 @@ class FPawn : public FActor {
 	GDCLASS(FPawn, FActor)
 
 private:
+	/**
+	 * @brief Controller that currently possesses this pawn; @c nullptr when unpossessed.
+	 *
+	 * Set by FController::control() and cleared by
+	 * FController::remove_control(). Never freed by the pawn.
+	 */
 	FController* controller{ nullptr };
 
 protected:
@@ -43,6 +49,8 @@ public:
 	 */
 	[[nodiscard]] FController* get_controller() const;
 
+	// FController::control() writes controller directly; the friendship keeps
+	// the accessor read-only for every other caller.
 	friend class FController;
 };
 

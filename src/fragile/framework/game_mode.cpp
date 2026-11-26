@@ -3,7 +3,6 @@
 
 #include "fragile/utils/register_helper.h"
 #include "fragile/utils/type_check.h"
-#include "world.h"
 
 namespace fragile::framework {
 

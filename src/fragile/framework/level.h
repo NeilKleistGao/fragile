@@ -1,8 +1,8 @@
 #ifndef __FRAGILE_FRAMEWORK_LEVEL_H__
 #define __FRAGILE_FRAMEWORK_LEVEL_H__
 
-#include "fragile/global.h"
 #include "actor.h"
+#include "fragile/global.h"
 
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>

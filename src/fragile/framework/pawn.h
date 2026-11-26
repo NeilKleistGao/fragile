@@ -1,8 +1,8 @@
 #ifndef __FRAGILE_PAWN_H__
 #define __FRAGILE_PAWN_H__
 
-#include "fragile/global.h"
 #include "actor.h"
+#include "fragile/global.h"
 
 namespace fragile::framework {
 

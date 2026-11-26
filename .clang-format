@@ -59,30 +59,32 @@ AttributeMacros:
 # BinPackArguments: true
 # BinPackParameters: true
 # BitFieldColonSpacing: Both
-# BraceWrapping:
-#   AfterCaseLabel: false
-#   AfterClass: false
-#   AfterControlStatement: Never
-#   AfterEnum: false
-#   AfterFunction: false
-#   AfterNamespace: false
-#   AfterObjCDeclaration: false
-#   AfterStruct: false
-#   AfterUnion: false
-#   AfterExternBlock: false
-#   BeforeCatch: false
-#   BeforeElse: false
-#   BeforeLambdaBody: false
-#   BeforeWhile: false
-#   IndentBraces: false
-#   SplitEmptyFunction: true
-#   SplitEmptyRecord: true
-#   SplitEmptyNamespace: true
+# Kept explicit (not commented) because BreakBeforeBraces: Custom below relies on it.
+# BeforeElse: true makes "}" and "else {" two lines (godot-cpp's base style attaches them).
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterObjCDeclaration: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: true
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
 # BreakAfterAttributes: Never
 # BreakAfterJavaFieldAnnotations: false
 # BreakArrays: true
 # BreakBeforeBinaryOperators: None
-# BreakBeforeBraces: Attach
+BreakBeforeBraces: Custom
 # BreakBeforeConceptDeclarations: Always
 # BreakBeforeInlineASMColon: OnlyMultiline
 # BreakBeforeTernaryOperators: true

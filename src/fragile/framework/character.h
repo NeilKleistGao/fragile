@@ -2,7 +2,6 @@
 #define __FRAGILE_CHARACTER_H__
 
 #include "fragile/global.h"
-
 #include "pawn.h"
 
 namespace fragile::framework {

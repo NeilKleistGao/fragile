@@ -1,5 +1,6 @@
 #include "world.h"
 
+#include "fragile/utils/editor.h"
 #include "fragile/utils/register_helper.h"
 #include "fragile/utils/type_check.h"
 
@@ -80,6 +81,8 @@ Ref<PackedScene> FWorld::get_default_level_prefab() const {
 void FWorld::_ready() {
 	Node2D::_ready();
 
+	FRAGILE_RUNTIME_API;
+
 	if (default_level_prefab != nullptr) {
 		if (auto* level = cast_to<FLevel>(default_level_prefab->instantiate()); level != nullptr) {
 			current_level = level;
@@ -93,12 +96,18 @@ void FWorld::_ready() {
 
 void FWorld::_enter_tree() {
 	Node2D::_enter_tree();
+
+	FRAGILE_RUNTIME_API;
+
 	ERR_FAIL_COND_MSG(instance != nullptr, "Multiple world definitions.");
 	instance = this;
 }
 
 void FWorld::_exit_tree() {
 	Node2D::_exit_tree();
+
+	FRAGILE_RUNTIME_API;
+
 	instance = nullptr;
 }
 

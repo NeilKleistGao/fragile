@@ -1,5 +1,6 @@
 #include "level.h"
 
+#include "fragile/utils/editor.h"
 #include "fragile/utils/register_helper.h"
 #include "fragile/utils/type_check.h"
 #include "world.h"
@@ -16,7 +17,7 @@ void FLevel::_bind_methods() {
 void FLevel::spawn_game_mode() {
 	auto& game_mode_prefab = override_game_mode;
 	if (game_mode_prefab.is_null()) {
-		auto* world = FWorld::get_current_world();
+		const auto* world = FWorld::get_current_world();
 		if (world == nullptr) {
 			print_error(String{ "Cannot load default game mode: current world not found." });
 			return;
@@ -71,6 +72,8 @@ Ref<PackedScene> FLevel::get_override_game_mode() const {
 
 void FLevel::_ready() {
 	Node2D::_ready();
+
+	FRAGILE_RUNTIME_API;
 
 	spawn_game_mode();
 	if (game_mode != nullptr) {

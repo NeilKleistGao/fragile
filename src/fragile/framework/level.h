@@ -10,6 +10,8 @@
 
 namespace fragile::framework {
 
+class FGameMode;
+
 /**
  * @brief A container of actors.
  *
@@ -24,6 +26,18 @@ private:
 	Array actors;
 
 	Ref<PackedScene> override_game_mode;
+
+	/**
+	 * @brief Game mode owned by this world; @c nullptr when none is set.
+	 *
+	 * A child node of this world, created by set_game_mode() or spawned
+	 * from game_mode_prefab at ready. Freed together with the world.
+	 */
+	FGameMode* game_mode{ nullptr };
+
+	void spawn_game_mode();
+
+	void spawn_player_with_controller();
 
 protected:
 	static void _bind_methods();
@@ -41,6 +55,8 @@ public:
 
 	void set_override_game_mode(const Ref<PackedScene>& prefab);
 	[[nodiscard]] Ref<PackedScene> get_override_game_mode() const;
+
+	void _ready() override;
 };
 
 }	 // namespace fragile::framework

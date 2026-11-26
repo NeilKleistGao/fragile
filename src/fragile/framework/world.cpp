@@ -14,7 +14,6 @@ FWorld* FWorld::instance = nullptr;
 
 void FWorld::_bind_methods() {
 	ADD_METHOD(FWorld, open_level, "level_name");
-	ADD_SETTER_GETTER(FWorld, game_mode, "game_mode", "keep");
 	ADD_PREFAB_PROPERTY(FWorld, game_mode_prefab);
 	ADD_PREFAB_PROPERTY(FWorld, default_level_prefab);
 	ADD_STATIC_METHOD(FWorld, get_current_world);
@@ -40,36 +39,6 @@ void FWorld::open_level(const StringName& level_name) {
 	}
 
 	print_error(String("Cannot create ") + level_name);
-}
-
-void FWorld::set_game_mode(FGameMode* game_mode, const bool keep) {
-	if (this->game_mode == game_mode) {
-		return;
-	}
-
-	// Assertion: the world adopts the game mode as its own child and
-	// never steals it from another parent - hand over a parentless game
-	// mode or one that is already below this world.
-	ERR_FAIL_COND_MSG(game_mode != nullptr && game_mode->get_parent() != nullptr && game_mode->get_parent() != this, "Cannot set game mode: the game mode already has a parent.");
-
-	if (this->game_mode != nullptr) {
-		FGameMode* old_game_mode = this->game_mode;
-		this->game_mode = nullptr;
-		remove_child(old_game_mode);
-
-		if (!keep) {
-			old_game_mode->queue_free();
-		}
-	}
-
-	this->game_mode = game_mode;
-	if (this->game_mode != nullptr) {
-		add_child(this->game_mode);	 // a game mode below this world is adopted in place
-	}
-}
-
-FGameMode* FWorld::get_game_mode() const {
-	return this->game_mode;
 }
 
 void FWorld::set_game_mode_prefab(const Ref<PackedScene>& prefab) {
@@ -119,21 +88,6 @@ void FWorld::_ready() {
 	}
 	else {
 		print_error("No default level specified.");
-		return;
-	}
-
-	auto mode_prefab = game_mode_prefab;
-	if (const auto override_mode = current_level->get_override_game_mode(); !override_mode.is_null()) {
-		mode_prefab = override_mode;
-	}
-
-	if (mode_prefab.is_null()) {
-		print_error("No game mode specified.");
-		return;
-	}
-
-	if (auto* mode = cast_to<FGameMode>(mode_prefab->instantiate()); mode != nullptr) {
-		set_game_mode(mode, false);
 	}
 }
 
@@ -150,12 +104,6 @@ void FWorld::_exit_tree() {
 
 FWorld* FWorld::get_current_world() {
 	return instance;
-}
-
-void FWorld::_notification(int p_what) {
-	if (p_what == Object::NOTIFICATION_PREDELETE) {
-		set_game_mode(nullptr, false);	// the world owns its game mode: freeing the world frees it too
-	}
 }
 
 }	 // namespace fragile::framework

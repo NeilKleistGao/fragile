@@ -26,14 +26,6 @@ private:
 	FLevel* current_level{ nullptr };
 
 	/**
-	 * @brief Game mode owned by this world; @c nullptr when none is set.
-	 *
-	 * A child node of this world, created by set_game_mode() or spawned
-	 * from game_mode_prefab at ready. Freed together with the world.
-	 */
-	FGameMode* game_mode{ nullptr };
-
-	/**
 	 * @brief Scene whose root derives from FGameMode, spawned at ready.
 	 *
 	 * Assigned through the @c game_mode_prefab property and validated by
@@ -52,8 +44,6 @@ private:
 protected:
 	static void _bind_methods();
 
-	void _notification(int p_what);
-
 public:
 	/**
 	 * @brief Opens the level of type @p level_name as the current level.
@@ -66,30 +56,6 @@ public:
 	 */
 	void open_level(const StringName& level_name);
 	// TODO: open a level by packed scene?
-
-	/**
-	 * @brief Makes @p game_mode this world's game mode and child node.
-	 *
-	 * The world owns its game mode: @p game_mode becomes a child node of
-	 * this world and a previously set game mode is removed from the tree
-	 * and freed. Passing @c nullptr clears the game mode the same way.
-	 * A game mode authored below this world in a scene is linked in place
-	 * and stays where the scene put it; a game mode that already has
-	 * another parent is refused with an error and never stolen.
-	 *
-	 * @param game_mode Game mode to own - parentless or already a child
-	 *                  of this world - or @c nullptr to clear.
-	 * @param keep
-	 */
-	void set_game_mode(FGameMode* game_mode, bool keep);
-
-	/**
-	 * @brief Returns this world's game mode.
-	 *
-	 * @return The owned FGameMode (also a child node of this world), or
-	 *         @c nullptr when none is set.
-	 */
-	[[nodiscard]] FGameMode* get_game_mode() const;
 
 	/**
 	 * @brief Sets the scene used to spawn the game mode at ready.

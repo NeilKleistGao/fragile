@@ -2,6 +2,7 @@
 #ifndef __FRAGILE_TYPE_CHECK_H__
 #define __FRAGILE_TYPE_CHECK_H__
 
+#include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/object.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/ref.hpp>

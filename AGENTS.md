@@ -281,6 +281,16 @@ with a headless engine smoke test on the Windows debug leg.
   Coverage must span **all** of `src/` and `include/` recursively (the CI
   `lint` step passes an explicit `find`-generated list): clang-format's own
   glob does not recurse and rejects `src\**\*.h` as an invalid argument.
+- **MSVC masks incomplete-type errors in templates; clang/GCC do not**:
+  member access on a non-dependent expression inside a template (e.g.
+  `obj->queue_free()` on a `godot::Node*` in `include/fragile/utils/type_check.h`)
+  is checked at template *definition* by clang/GCC but deferred to
+  instantiation by MSVC — so a missing class header (such as
+  `<godot_cpp/classes/node.hpp>`, while `resource.hpp` only forward-declares
+  `Node`) builds fine locally and fails on the macOS/Linux legs
+  (`member access into incomplete type`). Include the defining header in the
+  header that needs it (include-what-you-use); to reproduce locally, force an
+  explicit instantiation of the template in a probe TU compiled with `cl`.
 - **YAML pitfall**: a single-line `run:` must not start with `&` — YAML parses
   it as an anchor and the workflow silently compiles to **zero jobs**. Always
   use `run: |` blocks when a command may start with `&` (PowerShell call

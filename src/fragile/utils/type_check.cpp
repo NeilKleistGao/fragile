@@ -1,4 +1,4 @@
-#include "type_check.h"
+#include "fragile/utils/type_check.h"
 
 #include <godot_cpp/classes/scene_state.hpp>
 #include <godot_cpp/core/class_db.hpp>

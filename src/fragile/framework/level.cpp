@@ -1,13 +1,13 @@
-#include "level.h"
+#include "fragile/framework/level.h"
 
-#include "actor.h"
-#include "character.h"
-#include "controller.h"
+#include "fragile/framework/actor.h"
+#include "fragile/framework/character.h"
+#include "fragile/framework/controller.h"
+#include "fragile/framework/game_mode.h"
+#include "fragile/framework/world.h"
 #include "fragile/utils/editor.h"
 #include "fragile/utils/register_helper.h"
 #include "fragile/utils/type_check.h"
-#include "game_mode.h"
-#include "world.h"
 
 namespace fragile::framework {
 

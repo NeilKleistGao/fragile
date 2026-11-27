@@ -63,10 +63,14 @@ print("debug symbols: " + ("on" if debug_symbols == "yes" else "off") + " (targe
 #     scons custom_api_file=extension_api.json
 env = SConscript("godot-cpp/SConstruct", {"api_version": "4.7"})
 
-env.Append(CPPPATH=["src/"])
+# Headers live in include/ (mirroring the src/ subtree), implementation
+# files in src/; includes are written root-relative, e.g.
+# #include "fragile/framework/actor.h".
+env.Append(CPPPATH=["include/"])
 
 # SCons' Glob() does not recurse across directories; use Python's glob so
-# every .cpp below src/ (e.g. src/fragile/framework/) is compiled.
+# every .cpp below src/ (e.g. src/fragile/framework/) is compiled. Headers
+# under include/ are picked up through CPPPATH, not compiled themselves.
 sources = sorted(glob.glob("src/**/*.cpp", recursive=True))
 
 # ".dev" and ".universal" are not part of the .gdextension library keys.

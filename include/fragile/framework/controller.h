@@ -1,8 +1,8 @@
 #ifndef __FRAGILE_CONTROLLER_H__
 #define __FRAGILE_CONTROLLER_H__
 
+#include "fragile/framework/info.h"
 #include "fragile/global.h"
-#include "info.h"
 
 namespace fragile::framework {
 

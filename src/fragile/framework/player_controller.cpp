@@ -1,5 +1,5 @@
 
-#include "player_controller.h"
+#include "fragile/framework/player_controller.h"
 
 namespace fragile::framework {
 

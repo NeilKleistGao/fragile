@@ -12,12 +12,17 @@ A bare GDExtension plugin named `fragile` for **Godot 4.7** (C++ via
 ```
 SConstruct              # build script, pins api_version="4.7"
 godot-cpp/              # C++ bindings (see "godot-cpp provenance" below)
-src/                    # ALL C++ sources of the extension live here
+src/                    # ALL C++ sources (.cpp) of the extension live here
+include/                # ALL headers (.h), mirroring the src/ subtree paths
 project/                # Godot test project (project.godot, main.tscn)
 project/addons/fragile/bin/  # fragile.gdextension + built shared libraries
 ```
 
-Repo rule: every C++ file of the extension goes into `src/`. Nothing else.
+Repo rule: every C++ source (`.cpp`) of the extension goes into `src/`,
+every header (`.h`) into `include/` with the same relative path (e.g.
+`src/fragile/framework/actor.h` -> `include/fragile/framework/actor.h`).
+Includes are written root-relative against `include/`, e.g.
+`#include "fragile/framework/actor.h"`. Nothing else.
 
 ## Build & test workflow
 
@@ -259,7 +264,7 @@ Old URLs 404. Current locations:
 
 ## CI (.github/workflows/ci.yml)
 
-Two jobs: `lint` (clang-format over all of `src/` plus a LF line-ending check)
+Two jobs: `lint` (clang-format over all of `src/` and `include/` plus a LF line-ending check)
 and `build` (4-way matrix: Windows debug/release, Linux debug, macOS debug),
 with a headless engine smoke test on the Windows debug leg.
 
@@ -272,10 +277,10 @@ with a headless engine smoke test on the Windows debug leg.
   to match the local VS 2026 LLVM toolchain exactly — unpinned clang-format
   versions reformat differently and would desync local runs from CI. Check
   locally with
-  `<VS>\VC\Tools\Llvm\x64\bin\clang-format.exe --dry-run --Werror (Get-ChildItem src -Recurse -Include *.h,*.cpp).FullName`.
-  Coverage must span **all** of `src/` recursively (the CI `lint` step passes
-  an explicit `find`-generated list): clang-format's own glob does not recurse
-  and rejects `src\**\*.h` as an invalid argument.
+  `<VS>\VC\Tools\Llvm\x64\bin\clang-format.exe --dry-run --Werror (Get-ChildItem src,include -Recurse -Include *.h,*.cpp).FullName`.
+  Coverage must span **all** of `src/` and `include/` recursively (the CI
+  `lint` step passes an explicit `find`-generated list): clang-format's own
+  glob does not recurse and rejects `src\**\*.h` as an invalid argument.
 - **YAML pitfall**: a single-line `run:` must not start with `&` — YAML parses
   it as an anchor and the workflow silently compiles to **zero jobs**. Always
   use `run: |` blocks when a command may start with `&` (PowerShell call
@@ -354,8 +359,10 @@ Failure signatures:
 
 ## Conventions
 
-- All extension C++ under `src/`; registration code in `register_types.cpp`;
-  one class per header/source pair; `GDCLASS` macro + `_bind_methods()`.
+- All extension C++ sources (`.cpp`) under `src/`, all headers (`.h`) under
+  `include/` with the same relative path; registration code in
+  `register_types.cpp`; one class per header/source pair; `GDCLASS` macro +
+  `_bind_methods()`.
 - Keep `SConstruct`, `src/register_types.cpp` (entry symbol) and
   `project/addons/fragile/bin/fragile.gdextension` consistent — they form three
    ends of one

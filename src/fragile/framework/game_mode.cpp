@@ -1,5 +1,5 @@
 
-#include "game_mode.h"
+#include "fragile/framework/game_mode.h"
 
 #include "fragile/utils/register_helper.h"
 #include "fragile/utils/type_check.h"

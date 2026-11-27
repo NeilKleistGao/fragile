@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "fragile/utils/editor.h"
 
 #include <godot_cpp/classes/engine.hpp>
 

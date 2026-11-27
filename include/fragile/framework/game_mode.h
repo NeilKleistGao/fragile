@@ -2,8 +2,8 @@
 #ifndef __FRAGILE_GAME_MODE_H__
 #define __FRAGILE_GAME_MODE_H__
 
+#include "fragile/framework/info.h"
 #include "fragile/global.h"
-#include "info.h"
 
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/ref.hpp>

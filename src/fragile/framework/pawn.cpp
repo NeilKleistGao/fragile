@@ -1,7 +1,7 @@
 
-#include "pawn.h"
+#include "fragile/framework/pawn.h"
 
-#include "controller.h"
+#include "fragile/framework/controller.h"
 #include "fragile/utils/register_helper.h"
 
 namespace fragile::framework {

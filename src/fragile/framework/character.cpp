@@ -1,5 +1,5 @@
 
-#include "character.h"
+#include "fragile/framework/character.h"
 
 namespace fragile::framework {
 

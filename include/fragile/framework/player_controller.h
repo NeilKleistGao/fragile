@@ -1,7 +1,7 @@
 #ifndef __FRAGILE_PLAYER_CONTROLLER_H__
 #define __FRAGILE_PLAYER_CONTROLLER_H__
 
-#include "controller.h"
+#include "fragile/framework/controller.h"
 
 namespace fragile::framework {
 

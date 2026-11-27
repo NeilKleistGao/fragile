@@ -21,6 +21,7 @@ void initialize_fragile_module(ModuleInitializationLevel p_level) {
 #endif
 
 	ClassDB::register_class<fragile::framework::FInfo>();
+	ClassDB::register_class<fragile::framework::FInputComponent>();
 	ClassDB::register_class<fragile::framework::FGameMode>();
 	ClassDB::register_class<fragile::framework::FActor>();
 	ClassDB::register_class<fragile::framework::FLevel>();
@@ -33,6 +34,11 @@ void initialize_fragile_module(ModuleInitializationLevel p_level) {
 
 	auto* enhanced_input = memnew(fragile::framework::FEnhancedInput);
 	Engine::get_singleton()->register_singleton("EnhancedInput", enhanced_input);
+	// Engine singletons have no scene placement, but a Node needs to be inside
+	// the tree to receive input callbacks. The SceneTree does not exist yet at
+	// this initialization level, so join it from the first deferred message
+	// (attach_to_tree() is idempotent and skips the editor).
+	enhanced_input->call_deferred("attach_to_tree");
 }
 
 void uninitialize_fragile_module(ModuleInitializationLevel p_level) {
@@ -40,7 +46,17 @@ void uninitialize_fragile_module(ModuleInitializationLevel p_level) {
 		return;
 	}
 
-	Engine::get_singleton()->unregister_singleton("EnhancedInput");
+	Engine* engine = Engine::get_singleton();
+	if (engine != nullptr && engine->has_singleton("EnhancedInput")) {
+		auto* enhanced_input = Object::cast_to<fragile::framework::FEnhancedInput>(engine->get_singleton("EnhancedInput"));
+		engine->unregister_singleton("EnhancedInput");
+		// The engine does not own singletons: free it, otherwise ObjectDB
+		// reports a leaked instance at exit. At runtime the scene tree has
+		// already freed it and dropped the registration, so this is a no-op.
+		if (enhanced_input != nullptr) {
+			memdelete(enhanced_input);
+		}
+	}
 }
 
 extern "C" {

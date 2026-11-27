@@ -32,7 +32,9 @@ class FPawn;
 class FController : public FInfo {
 	GDCLASS(FController, FInfo)
 
-private:
+protected:
+	static void _bind_methods();
+
 	/**
 	 * @brief Pawn this controller possesses; @c nullptr when none is controlled.
 	 *
@@ -41,11 +43,14 @@ private:
 	 */
 	FPawn* controlled_pawn{ nullptr };
 
-protected:
-	static void _bind_methods();
-
 public:
-	// Clears the pawn's back-reference when this controller is torn down.
+	/**
+	 * @brief Releases the possessed pawn when this controller is torn down.
+	 *
+	 * Handles NOTIFICATION_PREDELETE by invoking the virtual remove_control(),
+	 * so derived classes get their cleanup without duplicating the teardown
+	 * hook.
+	 */
 	void _notification(int p_what);
 
 	/**
@@ -60,17 +65,26 @@ public:
 	 * pawn stays under its level for Y-sorting (see the class note
 	 * above).
 	 *
+	 * Derived classes override this to attach possession state of their own
+	 * (FPlayerController adds an input component) and should call the base
+	 * implementation first.
+	 *
 	 * @param pawn Pawn to possess; @c nullptr is refused with an error.
 	 */
-	void control(FPawn* pawn);
+	virtual void control(FPawn* pawn);
 
 	/**
 	 * @brief Releases the currently controlled pawn.
 	 *
 	 * Clears both ends of the relation so the pawn reports no controller
-	 * again. A no-op when this controller controls nothing.
+	 * again. A no-op when this controller controls nothing, which also makes
+	 * it safe to call during teardown.
+	 *
+	 * Derived classes override this to drop their possession state and must
+	 * call the base implementation last. _notification() invokes it on
+	 * NOTIFICATION_PREDELETE, when no pawn may ever have been possessed.
 	 */
-	void remove_control();
+	virtual void remove_control();
 };
 
 }	 // namespace fragile::framework

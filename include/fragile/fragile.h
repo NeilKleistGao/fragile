@@ -19,6 +19,7 @@
 #include "fragile/framework/enhanced_input.h"
 #include "fragile/framework/game_mode.h"
 #include "fragile/framework/info.h"
+#include "fragile/framework/input_component.h"
 #include "fragile/framework/level.h"
 #include "fragile/framework/pawn.h"
 #include "fragile/framework/player_controller.h"

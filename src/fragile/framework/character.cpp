@@ -1,14 +1,17 @@
 
 #include "fragile/framework/character.h"
 
+#include "fragile/framework/input_component.h"
 #include "fragile/utils/editor.h"
-#include "godot_cpp/classes/scene_tree.hpp"
+#include "fragile/utils/register_helper.h"
 
 #include <algorithm>
+#include <godot_cpp/classes/scene_tree.hpp>
 
 namespace fragile::framework {
 
 void FCharacter::_bind_methods() {
+	ADD_METHOD(FCharacter, get_input_component);
 }
 
 void FCharacter::_ready() {
@@ -25,6 +28,17 @@ void FCharacter::_ready() {
 			sprite->set_owner(get_tree()->get_edited_scene_root());
 		}
 	}
+}
+
+FInputComponent* FCharacter::get_input_component() const {
+	// FPlayerController parents its component directly under the possessed pawn.
+	for (const auto& node : get_children()) {
+		if (auto* ic = cast_to<FInputComponent>(node); ic != nullptr) {
+			return ic;
+		}
+	}
+
+	return nullptr;
 }
 
 }	 // namespace fragile::framework

@@ -7,8 +7,6 @@
 namespace fragile::framework {
 
 void FController::_bind_methods() {
-	ADD_METHOD(FController, control, "pawn");
-	ADD_METHOD(FController, remove_control);
 }
 
 void FController::control(FPawn* pawn) {

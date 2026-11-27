@@ -4,6 +4,8 @@
 #include "fragile/framework/pawn.h"
 #include "fragile/global.h"
 
+#include <godot_cpp/classes/animated_sprite2d.hpp>
+
 namespace fragile::framework {
 
 /**
@@ -23,6 +25,9 @@ class FCharacter : public FPawn {
 
 protected:
 	static void _bind_methods();
+
+public:
+	void _ready() override;
 };
 
 }	 // namespace fragile::framework

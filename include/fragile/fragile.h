@@ -16,6 +16,7 @@
 #include "fragile/framework/actor.h"
 #include "fragile/framework/character.h"
 #include "fragile/framework/controller.h"
+#include "fragile/framework/enhanced_input.h"
 #include "fragile/framework/game_mode.h"
 #include "fragile/framework/info.h"
 #include "fragile/framework/level.h"

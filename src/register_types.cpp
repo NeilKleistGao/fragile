@@ -1,6 +1,7 @@
 #include "register_types.h"
 
 #include "fragile/fragile.h"
+#include "godot_cpp/classes/engine.hpp"
 
 #include <gdextension_interface.h>
 
@@ -28,12 +29,18 @@ void initialize_fragile_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<fragile::framework::FCharacter>();
 	ClassDB::register_abstract_class<fragile::framework::FController>();
 	ClassDB::register_class<fragile::framework::FPlayerController>();
+	ClassDB::register_abstract_class<fragile::framework::FEnhancedInput>();
+
+	auto* enhanced_input = memnew(fragile::framework::FEnhancedInput);
+	Engine::get_singleton()->register_singleton("EnhancedInput", enhanced_input);
 }
 
 void uninitialize_fragile_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+
+	Engine::get_singleton()->unregister_singleton("EnhancedInput");
 }
 
 extern "C" {

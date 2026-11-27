@@ -1,6 +1,7 @@
 #ifndef __FRAGILE_FRAMEWORK_WORLD_H__
 #define __FRAGILE_FRAMEWORK_WORLD_H__
 
+#include "enhanced_input.h"
 #include "fragile/global.h"
 
 #include <godot_cpp/classes/node2d.hpp>

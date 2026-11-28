@@ -93,14 +93,8 @@ void FEnhancedInput::_physics_process(double p_delta) {
 void FEnhancedInput::_unhandled_input(const Ref<InputEvent>& p_event) {
 	FInfo::_unhandled_input(p_event);
 
-	InputMap* map = get_input_map();
-	if (map == nullptr) {
-		return;
-	}
-
-	const auto& all_actions = map->get_actions();
-	for (const auto& action : all_actions) {
-		if (p_event->is_action_pressed(action)) {
+	for (const auto& p : listeners) {
+		if (const auto& action = p.key; p_event->is_action_pressed(action)) {
 			broadcast_action(action, true, false, false);
 			activated_actions.insert(action);
 		}

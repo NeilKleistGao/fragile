@@ -2,7 +2,8 @@
 #define __FRAGILE_PAWN_H__
 
 #include "fragile/framework/actor.h"
-#include "fragile/global.h"
+#include "fragile/framework/input_component.h"
+#include "godot_cpp/core/gdvirtual.gen.inc"
 
 namespace fragile::framework {
 
@@ -40,6 +41,8 @@ private:
 protected:
 	static void _bind_methods();
 
+	GDVIRTUAL1(_setup_input_component, FInputComponent*);
+
 public:
 	// Clears the controller's back-reference when this pawn is torn down.
 	void _notification(int p_what);
@@ -55,6 +58,8 @@ public:
 	// FController::control() writes controller directly; the friendship keeps
 	// the accessor read-only for every other caller.
 	friend class FController;
+
+	void on_input_component_setup(FInputComponent* ic);
 };
 
 }	 // namespace fragile::framework

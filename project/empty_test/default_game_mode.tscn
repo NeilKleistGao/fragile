@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://crp6v80a8h1i8"]
+
+[ext_resource type="PackedScene" uid="uid://di5hkwsxglf6r" path="res://empty_test/default_character.tscn" id="1_72a20"]
+[ext_resource type="PackedScene" uid="uid://byr5v76c5sat" path="res://empty_test/default_player_controller.tscn" id="2_mo0fx"]
+
+[node name="FGameMode" type="FGameMode" unique_id=1944256723]
+character_prefab = ExtResource("1_72a20")
+controller_prefab = ExtResource("2_mo0fx")

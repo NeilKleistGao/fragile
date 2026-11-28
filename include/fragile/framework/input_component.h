@@ -35,6 +35,8 @@ private:
 	 */
 	HashMap<StringName, Callable> bindings{};
 
+	bool enabled{ true };
+
 protected:
 	static void _bind_methods();
 
@@ -77,6 +79,10 @@ public:
 	 * @param action Action to unbind.
 	 */
 	void unbind_action(const StringName& action);
+
+	void enable_input() { enabled = true; }
+	void disable_input() { enabled = false; }
+	[[nodiscard]] bool is_input_enabled() const { return enabled; }
 };
 
 }	 // namespace fragile::framework

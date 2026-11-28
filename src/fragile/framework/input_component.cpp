@@ -8,6 +8,9 @@ namespace fragile::framework {
 void FInputComponent::_bind_methods() {
 	ADD_METHOD(FInputComponent, bind_action, "action", "handler");
 	ADD_METHOD(FInputComponent, unbind_action, "action");
+	ADD_METHOD(FInputComponent, enable_input);
+	ADD_METHOD(FInputComponent, disable_input);
+	ADD_METHOD(FInputComponent, is_input_enabled);
 }
 
 void FInputComponent::_notification(int p_what) {
@@ -29,7 +32,7 @@ void FInputComponent::_notification(int p_what) {
 }
 
 void FInputComponent::receive_action_data(const StringName& action, bool started, bool ongoing, bool completed) {
-	if (bindings.find(action) == bindings.end()) {
+	if (!enabled || bindings.find(action) == bindings.end()) {
 		return;
 	}
 

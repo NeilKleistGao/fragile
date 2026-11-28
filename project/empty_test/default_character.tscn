@@ -1,9 +1,10 @@
 [gd_scene format=3 uid="uid://di5hkwsxglf6r"]
 
-[ext_resource type="Texture2D" uid="uid://5odehsl1rb1" path="res://icon.png" id="1_laq07"]
+[ext_resource type="Script" uid="uid://c2vxn8u4aie6v" path="res://empty_test/DefaultCharacter.cs" id="1_gegpp"]
+[ext_resource type="Texture2D" uid="uid://5odehsl1rb1" path="res://icon.png" id="2_10fqv"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_3fx6s"]
-atlas = ExtResource("1_laq07")
+atlas = ExtResource("2_10fqv")
 region = Rect2(0, 0, 128, 128)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_effma"]
@@ -18,6 +19,7 @@ animations = [{
 }]
 
 [node name="DefaultCharacter" type="FCharacter" unique_id=70836143]
+script = ExtResource("1_gegpp")
 
 [node name="Sprite" type="AnimatedSprite2D" parent="." unique_id=387946722]
 sprite_frames = SubResource("SpriteFrames_effma")

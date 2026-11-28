@@ -17,6 +17,7 @@ void FPlayerController::control(FPawn* pawn) {
 
 	input_component = memnew(FInputComponent);
 	controlled_pawn->add_child(input_component);
+	controlled_pawn->on_input_component_setup(input_component);
 }
 
 void FPlayerController::remove_control() {

@@ -23,6 +23,7 @@
 #include "fragile/framework/level.h"
 #include "fragile/framework/pawn.h"
 #include "fragile/framework/player_controller.h"
+#include "fragile/framework/spawn_point.h"
 #include "fragile/framework/world.h"
 
 #endif	// __FRAGILE_H__

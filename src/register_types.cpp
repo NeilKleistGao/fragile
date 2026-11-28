@@ -31,6 +31,7 @@ void initialize_fragile_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_abstract_class<fragile::framework::FController>();
 	ClassDB::register_class<fragile::framework::FPlayerController>();
 	ClassDB::register_abstract_class<fragile::framework::FEnhancedInput>();
+	ClassDB::register_class<fragile::framework::FSpawnPoint>();
 
 	auto* enhanced_input = memnew(fragile::framework::FEnhancedInput);
 	Engine::get_singleton()->register_singleton("EnhancedInput", enhanced_input);

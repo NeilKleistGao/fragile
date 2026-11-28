@@ -1,3 +1,24 @@
 [gd_scene format=3 uid="uid://di5hkwsxglf6r"]
 
+[ext_resource type="Texture2D" uid="uid://5odehsl1rb1" path="res://icon.png" id="1_laq07"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_3fx6s"]
+atlas = ExtResource("1_laq07")
+region = Rect2(0, 0, 128, 128)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_effma"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_3fx6s")
+}],
+"loop": 1,
+"name": &"default",
+"speed": 5.0
+}]
+
 [node name="DefaultCharacter" type="FCharacter" unique_id=70836143]
+
+[node name="Sprite" type="AnimatedSprite2D" parent="." unique_id=387946722]
+sprite_frames = SubResource("SpriteFrames_effma")
+offset = Vector2(0, -64)

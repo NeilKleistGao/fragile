@@ -2,6 +2,7 @@
 #define __FRAGILE_FRAMEWORK_LEVEL_H__
 
 #include "fragile/global.h"
+#include "spawn_point.h"
 
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
@@ -92,6 +93,8 @@ private:
 	 * takes control of the character once both exist.
 	 */
 	void spawn_player_with_controller();
+
+	FSpawnPoint* load_spawn_point() const;
 
 protected:
 	static void _bind_methods();

@@ -1,3 +1,6 @@
 [gd_scene format=3 uid="uid://cltrxupowcq4p"]
 
 [node name="EmptyLevel" type="FLevel" unique_id=1732177686]
+
+[node name="FSpawnPoint" type="FSpawnPoint" parent="." unique_id=700972204]
+position = Vector2(960, 540)

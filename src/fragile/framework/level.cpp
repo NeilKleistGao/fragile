@@ -39,8 +39,18 @@ void FLevel::spawn_game_mode() {
 void FLevel::spawn_player_with_controller() {
 	const auto& character_prefab = game_mode->get_character_prefab();
 	if (auto* character = utils::instantiate<FCharacter>(character_prefab); character != nullptr) {
+		auto* sp = load_spawn_point();
+		if (sp == nullptr) {
+			print_error("no character spawn point specified.");
+			character->queue_free();
+			return;
+		}
+
 		player = character;
+		player->set_position(sp->get_position());
 		add_child(player);
+		remove_child(sp);
+		sp->queue_free();
 	}
 
 	const auto& controller_prefab = game_mode->get_controller_prefab();
@@ -52,6 +62,16 @@ void FLevel::spawn_player_with_controller() {
 	if (player != nullptr && controller != nullptr) {
 		controller->control(player);
 	}
+}
+
+FSpawnPoint* FLevel::load_spawn_point() const {
+	for (const auto& node : get_children()) {
+		if (auto* sp = cast_to<FSpawnPoint>(node); sp != nullptr) {
+			return sp;
+		}
+	}
+
+	return nullptr;
 }
 
 void FLevel::add_actor(FActor* actor) {
